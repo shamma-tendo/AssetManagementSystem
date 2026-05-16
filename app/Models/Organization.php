@@ -19,6 +19,7 @@ class Organization extends Model
         'name',
         'email',
         'type', // company or household
+        'industry_type', // generic, hospital, school, retail, manufacturing, corporate, household
         'phone',
         'address',
         'city',
@@ -29,10 +30,16 @@ class Organization extends Model
         'logo_path',
         'subscription_plan',
         'is_active',
+        'next_of_kin_name',
+        'next_of_kin_phone',
+        'next_of_kin_email',
+        'next_of_kin_relationship',
+        'industry_metadata',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'industry_metadata' => 'array',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
@@ -91,5 +98,65 @@ class Organization extends Model
     public function isHousehold(): bool
     {
         return $this->type === 'household';
+    }
+
+    /**
+     * Industry Type Checkers
+     */
+    public function isHospital(): bool
+    {
+        return $this->industry_type === 'hospital';
+    }
+
+    public function isSchool(): bool
+    {
+        return $this->industry_type === 'school';
+    }
+
+    public function isRetail(): bool
+    {
+        return $this->industry_type === 'retail';
+    }
+
+    public function isManufacturing(): bool
+    {
+        return $this->industry_type === 'manufacturing';
+    }
+
+    public function isCorporate(): bool
+    {
+        return $this->industry_type === 'corporate';
+    }
+
+    /**
+     * Get a user-friendly industry type name
+     */
+    public function getIndustryTypeLabel(): string
+    {
+        return match ($this->industry_type) {
+            'hospital' => 'Hospital / Medical Facility',
+            'school' => 'School / Educational Institution',
+            'retail' => 'Retail Store',
+            'manufacturing' => 'Manufacturing Facility',
+            'corporate' => 'Corporate Office',
+            'household' => 'Personal / Household',
+            default => 'General Company',
+        };
+    }
+
+    /**
+     * Get industry-specific icon
+     */
+    public function getIndustryIcon(): string
+    {
+        return match ($this->industry_type) {
+            'hospital' => '🏥',
+            'school' => '🎓',
+            'retail' => '🏪',
+            'manufacturing' => '🏭',
+            'corporate' => '🏢',
+            'household' => '🏠',
+            default => '📦',
+        };
     }
 }

@@ -6,6 +6,10 @@ use App\Http\Controllers\Web\AssetAssignmentWebController;
 use App\Http\Controllers\Web\AssetIntakeWebController;
 use App\Http\Controllers\Web\AssetWebController;
 use App\Http\Controllers\Web\ExecutiveOverviewController;
+use App\Http\Controllers\Web\ExecutiveDashboardController;
+use App\Http\Controllers\Web\AssetManagerDashboardController;
+use App\Http\Controllers\Web\StaffDashboardController;
+use App\Http\Controllers\Web\HouseholdDashboardController;
 use App\Http\Controllers\Web\InventoryWebController;
 use App\Http\Controllers\Web\OrganizationWebController;
 use App\Http\Controllers\Web\ResourceRequestWebController;
@@ -29,6 +33,10 @@ Route::middleware('guest')->group(function () {
     Route::get('/select-tenant-type', [TenantLoginController::class, 'selectTenantType'])->name('select-tenant-type');
     Route::post('/tenant-type', [TenantLoginController::class, 'storeTenantType'])->name('tenant.store-type');
     
+    // Industry type selection (only for companies)
+    Route::get('/select-industry-type', [TenantLoginController::class, 'selectIndustryType'])->name('select-industry-type');
+    Route::post('/industry-type', [TenantLoginController::class, 'storeIndustryType'])->name('industry.store-type');
+    
     // Legacy routes (kept for backward compatibility)
     Route::get('/welcome', [WelcomeController::class, 'show'])->name('welcome');
     Route::get('/login', [TenantLoginController::class, 'showLoginForm'])->name('login');
@@ -40,9 +48,61 @@ Route::post('/logout', [TenantLoginController::class, 'logout'])
     ->name('logout');
 
 Route::middleware('auth')->group(function () {
+    // Smart dashboard routing based on user role
     Route::get('/dashboard', function () {
+        $user = auth()->user();
+        
+        if (!$user->organization) {
+            return view('dashboard');
+        }
+
+        // Route to appropriate dashboard based on role
+        if ($user->organization->isHousehold()) {
+            return redirect()->route('household.dashboard');
+        }
+
+        if ($user->isExecutive()) {
+            return redirect()->route('executive.dashboard');
+        }
+
+        if ($user->isAssetManager()) {
+            return redirect()->route('manager.dashboard');
+        }
+
+        if ($user->isStaff()) {
+            return redirect()->route('staff.dashboard');
+        }
+
         return view('dashboard');
     })->name('dashboard');
+
+    // Executive Dashboard
+    Route::prefix('executive')->middleware('can:view-executive-dashboard')->group(function () {
+        Route::get('/dashboard', [ExecutiveDashboardController::class, 'index'])->name('executive.dashboard');
+        Route::get('/approvals', [ExecutiveDashboardController::class, 'approvalQueue'])->name('executive.approvals');
+    });
+
+    // Asset Manager Dashboard
+    Route::prefix('manager')->middleware('can:view-manager-dashboard')->group(function () {
+        Route::get('/dashboard', [AssetManagerDashboardController::class, 'index'])->name('manager.dashboard');
+        Route::get('/requests/create', [AssetManagerDashboardController::class, 'createRequest'])->name('manager.requests.create');
+        Route::get('/distribute', [AssetManagerDashboardController::class, 'distributeAssets'])->name('manager.distribute');
+    });
+
+    // Staff Dashboard
+    Route::prefix('staff')->middleware('can:view-staff-dashboard')->group(function () {
+        Route::get('/dashboard', [StaffDashboardController::class, 'index'])->name('staff.dashboard');
+        Route::get('/assets/{assetId}', [StaffDashboardController::class, 'viewAsset'])->name('staff.asset.view');
+        Route::get('/assets/{assetId}/report', [StaffDashboardController::class, 'reportAssetStatus'])->name('staff.asset.report');
+    });
+
+    // Household Dashboard
+    Route::prefix('household')->middleware('can:view-household-dashboard')->group(function () {
+        Route::get('/dashboard', [HouseholdDashboardController::class, 'index'])->name('household.dashboard');
+        Route::get('/assets/create', [HouseholdDashboardController::class, 'createAsset'])->name('household.assets.create');
+        Route::get('/assets/{assetId}', [HouseholdDashboardController::class, 'viewAsset'])->name('household.assets.view');
+        Route::get('/insurance', [HouseholdDashboardController::class, 'insurance'])->name('household.insurance');
+    });
 
    
     Route::get('workspace/pulse', [ExecutiveOverviewController::class, 'index']);

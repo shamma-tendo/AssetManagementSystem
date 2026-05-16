@@ -111,5 +111,65 @@ class User extends Authenticatable
     {
         return $this->role && in_array($this->role->name, $roles);
     }
+
+    /**
+     * Role-specific checkers for company accounts
+     */
+    public function isExecutive(): bool
+    {
+        return $this->hasAnyRole(['CEO', 'CFO', 'Executive', 'Admin']);
+    }
+
+    public function isAssetManager(): bool
+    {
+        return $this->hasRole('Asset Manager');
+    }
+
+    public function isStaff(): bool
+    {
+        return $this->hasRole('Staff');
+    }
+
+    public function isEmployee(): bool
+    {
+        return $this->hasAnyRole(['Staff', 'Employee', 'Team Member']);
+    }
+
+    /**
+     * For household/individual accounts
+     */
+    public function isHouseholdOwner(): bool
+    {
+        return $this->organization && $this->organization->isHousehold();
+    }
+
+    /**
+     * Get user's dashboard route based on role and organization type
+     */
+    public function getDashboardRoute(): string
+    {
+        if (!$this->organization) {
+            return 'dashboard';
+        }
+
+        if ($this->organization->isHousehold()) {
+            return 'household.dashboard';
+        }
+
+        // Company-based dashboards
+        if ($this->isExecutive()) {
+            return 'executive.dashboard';
+        }
+
+        if ($this->isAssetManager()) {
+            return 'manager.dashboard';
+        }
+
+        if ($this->isStaff()) {
+            return 'staff.dashboard';
+        }
+
+        return 'dashboard';
+    }
 }
 
