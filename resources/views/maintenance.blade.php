@@ -1,0 +1,508 @@
+@extends('layouts.app')
+
+@section('title', 'Maintenance Pipeline')
+
+@section('content')
+<div x-data="maintenanceManagement()" x-init="init()">
+    
+    <!-- Page Header -->
+    <div class="mb-8">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900 mb-2">Maintenance Pipeline</h1>
+                <p class="text-gray-600">Manage lifecycle tasks and urgent repairs across facility.</p>
+            </div>
+            <div class="flex items-center space-x-3 mt-4 sm:mt-0">
+                <!-- View Toggle Buttons -->
+                <div class="flex items-center space-x-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-1">
+                    <button @click="activeView = 'kanban'" 
+                            :class="activeView === 'kanban' ? 'bg-white/30 text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/10'" 
+                            class="px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200">
+                        <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                        </svg>
+                        Kanban
+                    </button>
+                    <button @click="activeView = 'list'" 
+                            :class="activeView === 'list' ? 'bg-white/30 text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/10'" 
+                            class="px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200">
+                        <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
+                        </svg>
+                        List
+                    </button>
+                    <button @click="activeView = 'schedule'" 
+                            :class="activeView === 'schedule' ? 'bg-white/30 text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/10'" 
+                            class="px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200">
+                        <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                        Schedule
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- KPI Cards Section -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+        <!-- Active Orders Card -->
+        <div class="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 shadow-xl hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300 fade-in">
+            <div class="flex items-center justify-between mb-4">
+                <div class="p-3 bg-blue-500/20 rounded-xl">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                    </svg>
+                </div>
+                <span class="text-xs text-blue-500 font-medium">+3</span>
+            </div>
+            <div class="space-y-1">
+                <p class="text-sm text-gray-600 font-medium">Active Orders</p>
+                <p class="text-3xl font-bold text-gray-900" x-text="formatNumber(stats.activeOrders)">24</p>
+            </div>
+        </div>
+        
+        <!-- Overdue Card -->
+        <div class="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 shadow-xl hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300 fade-in" style="animation-delay: 0.1s">
+            <div class="flex items-center justify-between mb-4">
+                <div class="p-3 bg-red-500/20 rounded-xl">
+                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                    </svg>
+                </div>
+                <span class="text-xs text-red-500 font-medium">+1</span>
+            </div>
+            <div class="space-y-1">
+                <p class="text-sm text-gray-600 font-medium">Overdue</p>
+                <p class="text-3xl font-bold text-gray-900" x-text="formatNumber(stats.overdue)">04</p>
+            </div>
+        </div>
+        
+        <!-- Preventive Compliance Card -->
+        <div class="bg-gradient-to-br from-gray-800 to-black border border-white/20 rounded-2xl p-6 shadow-xl hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300 fade-in relative overflow-hidden" style="animation-delay: 0.2s">
+            <!-- Industrial texture overlay -->
+            <div class="absolute inset-0 opacity-5" style="background-image: url('data:image/svg+xml,%3Csvg width="60" height="60" xmlns="http://www.w3.org/2000/svg"%3E%3Cdefs%3E%3Cpattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse"%3E%3Cpath d="M 60 0 L 0 0 0 60" fill="none" stroke="white" stroke-width="1"/%3E%3C/pattern%3E%3C/defs%3E%3Crect width="100%25" height="100%25" fill="url(%23grid)" /%3E%3C/svg%3E');"></div>
+            
+            <div class="relative z-10">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="p-3 bg-white/10 rounded-xl">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <span class="text-xs text-green-400 font-medium">+0.5%</span>
+                </div>
+                <div class="space-y-1">
+                    <p class="text-sm text-gray-300 font-medium">Preventive Compliance</p>
+                    <p class="text-3xl font-bold text-white" x-text="stats.preventiveCompliance + '%'">98.2%</p>
+                </div>
+                <div class="mt-4">
+                    <div class="w-full bg-white/10 rounded-full h-2">
+                        <div class="bg-gradient-to-r from-green-400 to-green-500 h-2 rounded-full transition-all duration-500" style="width: 98.2%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Kanban Board View -->
+    <div x-show="activeView === 'kanban'" x-transition class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Pending Column -->
+        <div class="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 shadow-xl">
+            <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center space-x-3">
+                    <div class="w-3 h-3 bg-blue-500 rounded-full pulse-glow"></div>
+                    <h3 class="text-lg font-bold text-gray-900">Pending</h3>
+                    <span class="px-2 py-1 bg-blue-100/80 text-blue-700 border border-blue-200/50 rounded-full text-xs font-medium" x-text="tasks.pending.length">8</span>
+                </div>
+            </div>
+            
+            <div class="space-y-4">
+                <template x-for="task in tasks.pending" :key="task.id">
+                    <div class="bg-white/15 backdrop-blur-sm border border-white/20 rounded-xl p-4 hover:bg-white/25 hover:shadow-lg transform hover:-translate-y-1 transition-all duration-200 cursor-pointer" @click="selectTask(task)">
+                        <!-- Task Header -->
+                        <div class="flex items-start justify-between mb-3">
+                            <div class="flex items-center space-x-2">
+                                <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                      :class="task.priority === 'LOW' ? 'bg-blue-100/80 text-blue-700 border border-blue-200/50' : 
+                                              task.priority === 'MEDIUM' ? 'bg-gray-100/80 text-gray-700 border border-gray-200/50' : 
+                                              task.priority === 'HIGH' ? 'bg-orange-100/80 text-orange-700 border border-orange-200/50' : 
+                                              'bg-red-100/80 text-red-700 border border-red-200/50 pulse-glow'"
+                                      x-text="task.priority"></span>
+                                <span class="text-xs text-gray-500" x-text="task.id"></span>
+                            </div>
+                        </div>
+                        
+                        <!-- Task Title -->
+                        <h4 class="text-sm font-semibold text-gray-900 mb-2" x-text="task.title"></h4>
+                        
+                        <!-- Task Description -->
+                        <p class="text-xs text-gray-600 mb-3 line-clamp-2" x-text="task.description"></p>
+                        
+                        <!-- Task Meta -->
+                        <div class="flex items-center justify-between text-xs text-gray-500">
+                            <div class="flex items-center space-x-2">
+                                <span x-text="task.asset"></span>
+                                <span>•</span>
+                                <span x-text="task.technician"></span>
+                            </div>
+                            <span x-text="task.dueDate"></span>
+                        </div>
+                        
+                        <!-- Progress Bar (if applicable) -->
+                        <div x-show="task.progress > 0" class="mt-3">
+                            <div class="flex items-center justify-between text-xs text-gray-600 mb-1">
+                                <span>Progress</span>
+                                <span x-text="task.progress + '%'"></span>
+                            </div>
+                            <div class="w-full bg-white/20 rounded-full h-1.5">
+                                <div class="h-1.5 rounded-full transition-all duration-300"
+                                     :class="task.progress >= 75 ? 'bg-green-500' : task.progress >= 50 ? 'bg-yellow-500' : 'bg-blue-500'"
+                                     :style="`width: ${task.progress}%`"></div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+        
+        <!-- In Progress Column -->
+        <div class="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 shadow-xl">
+            <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center space-x-3">
+                    <div class="w-3 h-3 bg-yellow-500 rounded-full pulse-glow"></div>
+                    <h3 class="text-lg font-bold text-gray-900">In Progress</h3>
+                    <span class="px-2 py-1 bg-yellow-100/80 text-yellow-700 border border-yellow-200/50 rounded-full text-xs font-medium" x-text="tasks.inProgress.length">5</span>
+                </div>
+            </div>
+            
+            <div class="space-y-4">
+                <template x-for="task in tasks.inProgress" :key="task.id">
+                    <div class="bg-white/15 backdrop-blur-sm border border-white/20 rounded-xl p-4 hover:bg-white/25 hover:shadow-lg transform hover:-translate-y-1 transition-all duration-200 cursor-pointer" @click="selectTask(task)">
+                        <!-- Task Header -->
+                        <div class="flex items-start justify-between mb-3">
+                            <div class="flex items-center space-x-2">
+                                <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                      :class="task.priority === 'LOW' ? 'bg-blue-100/80 text-blue-700 border border-blue-200/50' : 
+                                              task.priority === 'MEDIUM' ? 'bg-gray-100/80 text-gray-700 border border-gray-200/50' : 
+                                              task.priority === 'HIGH' ? 'bg-orange-100/80 text-orange-700 border border-orange-200/50' : 
+                                              'bg-red-100/80 text-red-700 border border-red-200/50'"
+                                      x-text="task.priority"></span>
+                                <span class="text-xs text-gray-500" x-text="task.id"></span>
+                            </div>
+                        </div>
+                        
+                        <!-- Task Title -->
+                        <h4 class="text-sm font-semibold text-gray-900 mb-2" x-text="task.title"></h4>
+                        
+                        <!-- Task Description -->
+                        <p class="text-xs text-gray-600 mb-3 line-clamp-2" x-text="task.description"></p>
+                        
+                        <!-- Task Meta -->
+                        <div class="flex items-center justify-between text-xs text-gray-500">
+                            <div class="flex items-center space-x-2">
+                                <span x-text="task.asset"></span>
+                                <span>•</span>
+                                <span x-text="task.technician"></span>
+                            </div>
+                            <span x-text="task.dueDate"></span>
+                        </div>
+                        
+                        <!-- Progress Bar -->
+                        <div class="mt-3">
+                            <div class="flex items-center justify-between text-xs text-gray-600 mb-1">
+                                <span>Progress</span>
+                                <span x-text="task.progress + '%'"></span>
+                            </div>
+                            <div class="w-full bg-white/20 rounded-full h-1.5">
+                                <div class="h-1.5 rounded-full transition-all duration-300"
+                                     :class="task.progress >= 75 ? 'bg-green-500' : task.progress >= 50 ? 'bg-yellow-500' : 'bg-blue-500'"
+                                     :style="`width: ${task.progress}%`"></div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+        
+        <!-- Overdue Column -->
+        <div class="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 shadow-xl">
+            <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center space-x-3">
+                    <div class="w-3 h-3 bg-red-500 rounded-full pulse-glow"></div>
+                    <h3 class="text-lg font-bold text-gray-900">Overdue</h3>
+                    <span class="px-2 py-1 bg-red-100/80 text-red-700 border border-red-200/50 rounded-full text-xs font-medium" x-text="tasks.overdue.length">4</span>
+                </div>
+            </div>
+            
+            <div class="space-y-4">
+                <template x-for="task in tasks.overdue" :key="task.id">
+                    <div class="bg-white/15 backdrop-blur-sm border border-red-200/30 rounded-xl p-4 hover:bg-white/25 hover:shadow-lg transform hover:-translate-y-1 transition-all duration-200 cursor-pointer" @click="selectTask(task)">
+                        <!-- Task Header -->
+                        <div class="flex items-start justify-between mb-3">
+                            <div class="flex items-center space-x-2">
+                                <span class="px-2 py-1 text-xs font-medium rounded-full bg-red-100/80 text-red-700 border border-red-200/50 pulse-glow" x-text="task.priority"></span>
+                                <span class="text-xs text-gray-500" x-text="task.id"></span>
+                            </div>
+                            <div class="text-xs text-red-600 font-medium">
+                                <span x-text="task.overdueDays"></span> days overdue
+                            </div>
+                        </div>
+                        
+                        <!-- Task Title -->
+                        <h4 class="text-sm font-semibold text-gray-900 mb-2" x-text="task.title"></h4>
+                        
+                        <!-- Task Description -->
+                        <p class="text-xs text-gray-600 mb-3 line-clamp-2" x-text="task.description"></p>
+                        
+                        <!-- Task Meta -->
+                        <div class="flex items-center justify-between text-xs text-gray-500">
+                            <div class="flex items-center space-x-2">
+                                <span x-text="task.asset"></span>
+                                <span>•</span>
+                                <span x-text="task.technician"></span>
+                            </div>
+                            <span class="text-red-600" x-text="task.dueDate"></span>
+                        </div>
+                        
+                        <!-- SLA Warning -->
+                        <div class="mt-3 p-2 bg-red-50/50 border border-red-200/30 rounded-lg">
+                            <p class="text-xs text-red-700 font-medium">
+                                <svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                                </svg>
+                                SLA breach risk - Immediate action required
+                            </p>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+    
+    <!-- List View (placeholder) -->
+    <div x-show="activeView === 'list'" x-transition class="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 shadow-xl">
+        <div class="text-center py-12">
+            <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
+            </svg>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">List View</h3>
+            <p class="text-sm text-gray-600">Detailed list view of all maintenance tasks</p>
+        </div>
+    </div>
+    
+    <!-- Schedule View (placeholder) -->
+    <div x-show="activeView === 'schedule'" x-transition class="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 shadow-xl">
+        <div class="text-center py-12">
+            <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+            </svg>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">Schedule View</h3>
+            <p class="text-sm text-gray-600">Calendar-based maintenance scheduling interface</p>
+        </div>
+    </div>
+    
+    <!-- Maintenance Analytics Section -->
+    <div class="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Completion Rate Chart -->
+        <div class="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 shadow-xl">
+            <h3 class="text-lg font-bold text-gray-900 mb-4">Completion Rate</h3>
+            <div class="relative h-48">
+                <canvas id="completionChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- Response Time Chart -->
+        <div class="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 shadow-xl">
+            <h3 class="text-lg font-bold text-gray-900 mb-4">Response Time</h3>
+            <div class="relative h-48">
+                <canvas id="responseChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- Downtime Chart -->
+        <div class="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 shadow-xl">
+            <h3 class="text-lg font-bold text-gray-900 mb-4">Downtime Hours</h3>
+            <div class="relative h-48">
+                <canvas id="downtimeChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+</div>
+@endsection
+
+@push('scripts')
+<script>
+function maintenanceManagement() {
+    return {
+        stats: @json($stats),
+        tasks: @json($tasks),
+        analytics: @json($analytics),
+        selectedTask: null,
+        activeView: 'kanban',
+        
+        init() {
+            this.animateNumbers();
+            this.initCharts();
+        },
+        
+        formatNumber(num) {
+            return num.toLocaleString();
+        },
+        
+        animateNumbers() {
+            const animateValue = (element, start, end, duration) => {
+                const startTimestamp = Date.now();
+                const step = () => {
+                    const timestamp = Date.now();
+                    const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                    const value = Math.floor(progress * (end - start) + start);
+                    element.textContent = this.formatNumber(value);
+                    if (progress < 1) {
+                        requestAnimationFrame(step);
+                    }
+                };
+                requestAnimationFrame(step);
+            };
+            
+            setTimeout(() => {
+                const elements = document.querySelectorAll('[x-text*="formatNumber"]');
+                animateValue(elements[0], 0, this.stats.activeOrders, 1500);
+                animateValue(elements[1], 0, this.stats.overdue, 1200);
+            }, 500);
+        },
+        
+        selectTask(task) {
+            this.selectedTask = task;
+            // In a real application, this would open a modal or navigate to task details
+            console.log('Selected task:', task);
+        },
+        
+        initCharts() {
+            // Completion Rate Chart
+            const completionCtx = document.getElementById('completionChart').getContext('2d');
+            const completionGradient = completionCtx.createLinearGradient(0, 0, 0, 200);
+            completionGradient.addColorStop(0, 'rgba(34, 197, 94, 0.4)');
+            completionGradient.addColorStop(1, 'rgba(34, 197, 94, 0.1)');
+            
+            new Chart(completionCtx, {
+                type: 'line',
+                data: {
+                    labels: this.analytics.completionRate.labels,
+                    datasets: [{
+                        label: 'Completion Rate %',
+                        data: this.analytics.completionRate.data,
+                        borderColor: 'rgba(34, 197, 94, 1)',
+                        backgroundColor: completionGradient,
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            min: 80,
+                            max: 100,
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#6B7280', callback: value => value + '%' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#6B7280' }
+                        }
+                    }
+                }
+            });
+            
+            // Response Time Chart
+            const responseCtx = document.getElementById('responseChart').getContext('2d');
+            const responseGradient = responseCtx.createLinearGradient(0, 0, 0, 200);
+            responseGradient.addColorStop(0, 'rgba(59, 130, 246, 0.4)');
+            responseGradient.addColorStop(1, 'rgba(59, 130, 246, 0.1)');
+            
+            new Chart(responseCtx, {
+                type: 'line',
+                data: {
+                    labels: this.analytics.responseTime.labels,
+                    datasets: [{
+                        label: 'Response Time (hours)',
+                        data: this.analytics.responseTime.data,
+                        borderColor: 'rgba(59, 130, 246, 1)',
+                        backgroundColor: responseGradient,
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#6B7280', callback: value => value + 'h' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#6B7280' }
+                        }
+                    }
+                }
+            });
+            
+            // Downtime Chart
+            const downtimeCtx = document.getElementById('downtimeChart').getContext('2d');
+            const downtimeGradient = downtimeCtx.createLinearGradient(0, 0, 0, 200);
+            downtimeGradient.addColorStop(0, 'rgba(239, 68, 68, 0.4)');
+            downtimeGradient.addColorStop(1, 'rgba(239, 68, 68, 0.1)');
+            
+            new Chart(downtimeCtx, {
+                type: 'bar',
+                data: {
+                    labels: this.analytics.downtime.labels,
+                    datasets: [{
+                        label: 'Downtime Hours',
+                        data: this.analytics.downtime.data,
+                        backgroundColor: downtimeGradient,
+                        borderColor: 'rgba(239, 68, 68, 1)',
+                        borderWidth: 2,
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#6B7280', callback: value => value + 'h' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#6B7280' }
+                        }
+                    }
+                }
+            });
+        }
+    }
+}
+</script>
+@endpush

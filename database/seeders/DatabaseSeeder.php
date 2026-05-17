@@ -15,11 +15,40 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        // Create users first
+        $this->call([
+            UserSeeder::class,
+        ]);
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+        // Create reference data
+        $this->call([
+            CategorySeeder::class,
+            LocationSeeder::class,
+            DepartmentSeeder::class,
+            PartCategorySeeder::class,
+            SupplierSeeder::class,
+        ]);
+
+        // Create main entities
+        $this->call([
+            AssetSeeder::class,
+            SensorSeeder::class,
+        ]);
+
+        // Create dependent entities
+        $this->call([
+            WorkOrderSeeder::class,
+            MaintenanceScheduleSeeder::class,
+            InspectionSeeder::class,
+            SensorReadingSeeder::class,
+        ]);
+
+        // Create additional entities
+        $this->call([
+            PartSeeder::class,
+            PurchaseOrderSeeder::class,
+            DepreciationMethodSeeder::class,
+            SensorTypeSeeder::class,
         ]);
     }
 }

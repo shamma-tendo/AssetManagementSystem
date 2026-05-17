@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asset Management System - Real-Time Operations</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .stats {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #3498db;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            padding: 30px;
+        }
+        
+        .section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .section h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #495057;
+        }
+        
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+        }
+        
+        .btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .btn:hover {
+            background: #2980b9;
+            transform: translateY(-1px);
+        }
+        
+        .btn-success {
+            background: #27ae60;
+        }
+        
+        .btn-success:hover {
+            background: #219a52;
+        }
+        
+        .btn-danger {
+            background: #e74c3c;
+        }
+        
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+        
+        .btn-warning {
+            background: #f39c12;
+        }
+        
+        .btn-warning:hover {
+            background: #e67e22;
+        }
+        
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+        
+        .list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            background: white;
+        }
+        
+        .list-item {
+            padding: 15px;
+            border-bottom: 1px solid #f1f3f4;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .list-item:last-child {
+            border-bottom: none;
+        }
+        
+        .list-item:hover {
+            background: #f8f9fa;
+        }
+        
+        .item-info {
+            flex: 1;
+        }
+        
+        .item-name {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 4px;
+        }
+        
+        .item-details {
+            font-size: 12px;
+            color: #6c757d;
+        }
+        
+        .item-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        
+        .status-active {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-maintenance {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-pending {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .status-in-progress {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .priority-high {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .priority-medium {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .priority-low {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .message {
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+        }
+        
+        .refresh-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        
+        .refresh-btn:hover {
+            background: #5a6268;
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏭 Asset Management System</h1>
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="totalAssets">0</div>
+                    <div class="stat-label">Total Assets</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="activeAssets">0</div>
+                    <div class="stat-label">Active Assets</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="totalValue">$0</div>
+                    <div class="stat-label">Total Value</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="pendingWorkOrders">0</div>
+                    <div class="stat-label">Pending Work</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="section">
+                <h2>🏭 Asset Management</h2>
+                <div id="assetMessage" class="message"></div>
+                
+                <form id="assetForm">
+                    <div class="form-group">
+                        <label for="assetName">Asset Name</label>
+                        <input type="text" id="assetName" placeholder="Enter asset name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="assetCategory">Category</label>
+                        <select id="assetCategory" required>
+                            <option value="">Select category</option>
+                            <option value="Machinery">Machinery</option>
+                            <option value="Equipment">Equipment</option>
+                            <option value="Vehicles">Vehicles</option>
+                            <option value="Buildings">Buildings</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="assetValue">Value ($)</label>
+                        <input type="number" id="assetValue" placeholder="Enter asset value" min="0" step="0.01">
+                    </div>
+                    <button type="submit" class="btn">➕ Add Asset</button>
+                </form>
+                
+                <h3 style="margin-top: 30px; margin-bottom: 15px;">📋 Asset List</h3>
+                <button class="refresh-btn" onclick="loadAssets()">🔄 Refresh</button>
+                <div class="loading" id="assetLoading">Loading assets...</div>
+                <div class="list" id="assetList"></div>
+            </div>
+            
+            <div class="section">
+                <h2>🔧 Work Order Management</h2>
+                <div id="workOrderMessage" class="message"></div>
+                
+                <form id="workOrderForm">
+                    <div class="form-group">
+                        <label for="workOrderTitle">Work Order Title</label>
+                        <input type="text" id="workOrderTitle" placeholder="Enter work order title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="workOrderAsset">Asset</label>
+                        <select id="workOrderAsset" required>
+                            <option value="">Select asset</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="workOrderPriority">Priority</label>
+                        <select id="workOrderPriority">
+                            <option value="Low">Low</option>
+                            <option value="Medium" selected>Medium</option>
+                            <option value="High">High</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn">➕ Create Work Order</button>
+                </form>
+                
+                <h3 style="margin-top: 30px; margin-bottom: 15px;">📋 Work Orders</h3>
+                <button class="refresh-btn" onclick="loadWorkOrders()">🔄 Refresh</button>
+                <div class="loading" id="workOrderLoading">Loading work orders...</div>
+                <div class="list" id="workOrderList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let assets = [];
+        let workOrders = [];
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStats();
+            loadAssets();
+            loadWorkOrders();
+            
+            // Set up form listeners
+            document.getElementById('assetForm').addEventListener('submit', handleAssetSubmit);
+            document.getElementById('workOrderForm').addEventListener('submit', handleWorkOrderSubmit);
+            
+            // Auto-refresh stats every 5 seconds
+            setInterval(loadStats, 5000);
+        });
+
+        // API helper function
+        async function apiCall(action, data = null) {
+            try {
+                const options = {
+                    method: data ? 'POST' : 'GET',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    }
+                };
+                
+                if (data) {
+                    const formData = new URLSearchParams();
+                    Object.keys(data).forEach(key => {
+                        formData.append(key, data[key]);
+                    });
+                    options.body = formData;
+                }
+                
+                const response = await fetch(`realtime.php?action=${action}`, options);
+                return await response.json();
+            } catch (error) {
+                console.error('API call failed:', error);
+                return { success: false, message: 'Network error occurred' };
+            }
+        }
+
+        // Load statistics
+        async function loadStats() {
+            const result = await apiCall('get_stats');
+            if (result.success) {
+                const stats = result.data;
+                document.getElementById('totalAssets').textContent = stats.total_assets;
+                document.getElementById('activeAssets').textContent = stats.active_assets;
+                document.getElementById('totalValue').textContent = '$' + stats.total_value.toLocaleString();
+                document.getElementById('pendingWorkOrders').textContent = stats.pending_work_orders;
+            }
+        }
+
+        // Load assets
+        async function loadAssets() {
+            document.getElementById('assetLoading').style.display = 'block';
+            const result = await apiCall('get_assets');
+            document.getElementById('assetLoading').style.display = 'none';
+            
+            if (result.success) {
+                assets = result.data;
+                renderAssets();
+                updateAssetSelect();
+            }
+        }
+
+        // Render assets
+        function renderAssets() {
+            const list = document.getElementById('assetList');
+            
+            if (assets.length === 0) {
+                list.innerHTML = '<div class="list-item">No assets found</div>';
+                return;
+            }
+            
+            list.innerHTML = assets.map(asset => `
+                <div class="list-item">
+                    <div class="item-info">
+                        <div class="item-name">${asset.name}</div>
+                        <div class="item-details">
+                            ${asset.category} • $${asset.value.toLocaleString()} • 
+                            <span class="status-badge status-${asset.status.toLowerCase().replace(' ', '-')}">${asset.status}</span>
+                        </div>
+                    </div>
+                    <div class="item-actions">
+                        <button class="btn btn-small btn-warning" onclick="editAsset(${asset.id})">✏️</button>
+                        <button class="btn btn-small btn-danger" onclick="deleteAsset(${asset.id})">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Update asset select dropdown
+        function updateAssetSelect() {
+            const select = document.getElementById('workOrderAsset');
+            select.innerHTML = '<option value="">Select asset</option>' + 
+                assets.map(asset => `<option value="${asset.id}">${asset.name}</option>`).join('');
+        }
+
+        // Handle asset form submission
+        async function handleAssetSubmit(e) {
+            e.preventDefault();
+            
+            const data = {
+                name: document.getElementById('assetName').value,
+                category: document.getElementById('assetCategory').value,
+                value: document.getElementById('assetValue').value
+            };
+            
+            const result = await apiCall('add_asset', data);
+            
+            if (result.success) {
+                showMessage('assetMessage', 'Asset added successfully!', 'success');
+                document.getElementById('assetForm').reset();
+                loadAssets();
+                loadStats();
+            } else {
+                showMessage('assetMessage', result.message, 'error');
+            }
+        }
+
+        // Edit asset
+        function editAsset(id) {
+            const asset = assets.find(a => a.id === id);
+            if (asset) {
+                document.getElementById('assetName').value = asset.name;
+                document.getElementById('assetCategory').value = asset.category;
+                document.getElementById('assetValue').value = asset.value;
+                document.getElementById('assetForm').onsubmit = function(e) {
+                    e.preventDefault();
+                    updateAsset(id);
+                };
+            }
+        }
+
+        // Update asset
+        async function updateAsset(id) {
+            const data = {
+                id: id,
+                name: document.getElementById('assetName').value,
+                category: document.getElementById('assetCategory').value,
+                status: document.getElementById('assetStatus')?.value || ''
+            };
+            
+            const result = await apiCall('update_asset', data);
+            
+            if (result.success) {
+                showMessage('assetMessage', 'Asset updated successfully!', 'success');
+                document.getElementById('assetForm').reset();
+                document.getElementById('assetForm').onsubmit = handleAssetSubmit;
+                loadAssets();
+                loadStats();
+            } else {
+                showMessage('assetMessage', result.message, 'error');
+            }
+        }
+
+        // Delete asset
+        async function deleteAsset(id) {
+            if (confirm('Are you sure you want to delete this asset?')) {
+                const result = await apiCall('delete_asset', { id: id });
+                
+                if (result.success) {
+                    showMessage('assetMessage', 'Asset deleted successfully!', 'success');
+                    loadAssets();
+                    loadStats();
+                } else {
+                    showMessage('assetMessage', result.message, 'error');
+                }
+            }
+        }
+
+        // Load work orders
+        async function loadWorkOrders() {
+            document.getElementById('workOrderLoading').style.display = 'block';
+            const result = await apiCall('get_work_orders');
+            document.getElementById('workOrderLoading').style.display = 'none';
+            
+            if (result.success) {
+                workOrders = result.data;
+                renderWorkOrders();
+            }
+        }
+
+        // Render work orders
+        function renderWorkOrders() {
+            const list = document.getElementById('workOrderList');
+            
+            if (workOrders.length === 0) {
+                list.innerHTML = '<div class="list-item">No work orders found</div>';
+                return;
+            }
+            
+            list.innerHTML = workOrders.map(workOrder => {
+                const asset = assets.find(a => a.id === workOrder.asset_id);
+                return `
+                    <div class="list-item">
+                        <div class="item-info">
+                            <div class="item-name">${workOrder.title}</div>
+                            <div class="item-details">
+                                ${asset ? asset.name : 'Unknown Asset'} • 
+                                <span class="status-badge status-${workOrder.status.toLowerCase().replace(' ', '-')}">${workOrder.status}</span> • 
+                                <span class="priority-badge priority-${workOrder.priority.toLowerCase()}">${workOrder.priority}</span>
+                            </div>
+                        </div>
+                        <div class="item-actions">
+                            <select class="btn-small" onchange="updateWorkOrderStatus(${workOrder.id}, this.value)">
+                                <option value="Pending" ${workOrder.status === 'Pending' ? 'selected' : ''}>Pending</option>
+                                <option value="In Progress" ${workOrder.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                                <option value="Completed" ${workOrder.status === 'Completed' ? 'selected' : ''}>Completed</option>
+                            </select>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Handle work order form submission
+        async function handleWorkOrderSubmit(e) {
+            e.preventDefault();
+            
+            const data = {
+                title: document.getElementById('workOrderTitle').value,
+                asset_id: document.getElementById('workOrderAsset').value,
+                priority: document.getElementById('workOrderPriority').value
+            };
+            
+            const result = await apiCall('add_work_order', data);
+            
+            if (result.success) {
+                showMessage('workOrderMessage', 'Work order created successfully!', 'success');
+                document.getElementById('workOrderForm').reset();
+                loadWorkOrders();
+                loadStats();
+            } else {
+                showMessage('workOrderMessage', result.message, 'error');
+            }
+        }
+
+        // Update work order status
+        async function updateWorkOrderStatus(id, status) {
+            const result = await apiCall('update_work_order', { id: id, status: status });
+            
+            if (result.success) {
+                loadWorkOrders();
+                loadStats();
+            } else {
+                alert('Failed to update work order: ' + result.message);
+            }
+        }
+
+        // Show message
+        function showMessage(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `message ${type}`;
+            element.style.display = 'block';
+            
+            setTimeout(() => {
+                element.style.display = 'none';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
