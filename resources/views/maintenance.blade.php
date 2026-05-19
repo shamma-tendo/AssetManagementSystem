@@ -4,6 +4,15 @@
 
 @section('content')
 <div x-data="maintenanceManagement()" x-init="init()">
+
+    @if(session('success'))
+    <div class="mb-6 px-4 py-3 bg-green-50 border border-green-200 rounded-xl flex items-center space-x-3">
+        <svg class="w-5 h-5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        <span class="text-sm font-medium text-green-800">{{ session('success') }}</span>
+    </div>
+    @endif
     
     <!-- Page Header -->
     <div class="mb-8">
@@ -13,6 +22,13 @@
                 <p class="text-gray-600">Manage lifecycle tasks and urgent repairs across facility.</p>
             </div>
             <div class="flex items-center space-x-3 mt-4 sm:mt-0">
+                <button @click="showNewWorkOrderModal = true"
+                        class="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                    New Work Order
+                </button>
                 <!-- View Toggle Buttons -->
                 <div class="flex items-center space-x-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-1">
                     <button @click="activeView = 'kanban'" 
@@ -58,7 +74,7 @@
             </div>
             <div class="space-y-1">
                 <p class="text-sm text-gray-600 font-medium">Active Orders</p>
-                <p class="text-3xl font-bold text-gray-900" x-text="formatNumber(stats.activeOrders)">24</p>
+                <p id="stat-active-orders" class="text-3xl font-bold text-gray-900" x-text="formatNumber(stats.activeOrders)"></p>
             </div>
         </div>
         
@@ -74,7 +90,7 @@
             </div>
             <div class="space-y-1">
                 <p class="text-sm text-gray-600 font-medium">Overdue</p>
-                <p class="text-3xl font-bold text-gray-900" x-text="formatNumber(stats.overdue)">04</p>
+                <p id="stat-overdue" class="text-3xl font-bold text-gray-900" x-text="formatNumber(stats.overdue)"></p>
             </div>
         </div>
         
@@ -330,6 +346,119 @@
         </div>
     </div>
     
+    <!-- New Work Order Modal -->
+    <template x-teleport="body">
+    <div x-show="showNewWorkOrderModal" x-transition class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="fixed inset-0 bg-black/50" @click="showNewWorkOrderModal = false"></div>
+        <div class="relative bg-white/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col">
+            <div class="flex items-center justify-between p-6 border-b border-gray-200">
+                <h2 class="text-xl font-bold text-gray-900">New Work Order</h2>
+                <button @click="showNewWorkOrderModal = false" class="p-2 rounded-lg hover:bg-gray-100">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="overflow-y-auto flex-1 p-6">
+                @if($errors->any())
+                <div class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <ul class="text-sm text-red-700 space-y-1">
+                        @foreach($errors->all() as $error)
+                            <li>• {{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+                @endif
+                <form id="newWorkOrderForm" method="POST" action="{{ route('maintenance.create-work-order') }}">
+                    @csrf
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Title <span class="text-red-500">*</span></label>
+                            <input type="text" name="title" required value="{{ old('title') }}"
+                                class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Description <span class="text-red-500">*</span></label>
+                            <textarea name="description" required rows="2"
+                                class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">{{ old('description') }}</textarea>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Type <span class="text-red-500">*</span></label>
+                                <select name="type" required class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                    <option value="">Select type</option>
+                                    <option value="preventive_maintenance" {{ old('type')=='preventive_maintenance'?'selected':'' }}>Preventive Maintenance</option>
+                                    <option value="corrective_maintenance" {{ old('type')=='corrective_maintenance'?'selected':'' }}>Corrective Maintenance</option>
+                                    <option value="emergency_maintenance"  {{ old('type')=='emergency_maintenance'?'selected':'' }}>Emergency Maintenance</option>
+                                    <option value="inspection"             {{ old('type')=='inspection'?'selected':'' }}>Inspection</option>
+                                    <option value="calibration"            {{ old('type')=='calibration'?'selected':'' }}>Calibration</option>
+                                    <option value="installation"           {{ old('type')=='installation'?'selected':'' }}>Installation</option>
+                                    <option value="repair"                 {{ old('type')=='repair'?'selected':'' }}>Repair</option>
+                                    <option value="upgrade"                {{ old('type')=='upgrade'?'selected':'' }}>Upgrade</option>
+                                    <option value="other"                  {{ old('type')=='other'?'selected':'' }}>Other</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Priority <span class="text-red-500">*</span></label>
+                                <select name="priority" required class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                    <option value="low"       {{ old('priority')=='low'?'selected':'' }}>Low</option>
+                                    <option value="normal"    {{ old('priority')=='normal'?'selected':'' }}>Normal</option>
+                                    <option value="high"      {{ old('priority')=='high'?'selected':'' }}>High</option>
+                                    <option value="urgent"    {{ old('priority')=='urgent'?'selected':'' }}>Urgent</option>
+                                    <option value="emergency" {{ old('priority')=='emergency'?'selected':'' }}>Emergency</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Asset <span class="text-red-500">*</span></label>
+                            <select name="asset_id" required class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="">Select asset</option>
+                                @foreach($assets as $asset)
+                                    <option value="{{ $asset->id }}" {{ old('asset_id')==$asset->id?'selected':'' }}>
+                                        {{ $asset->serial_number }} — {{ $asset->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Assign To</label>
+                            <select name="assigned_to" class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="">Unassigned</option>
+                                @foreach($users as $user)
+                                    <option value="{{ $user->id }}" {{ old('assigned_to')==$user->id?'selected':'' }}>{{ $user->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Scheduled Date</label>
+                                <input type="date" name="scheduled_date" value="{{ old('scheduled_date') }}"
+                                    class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Est. Hours</label>
+                                <input type="number" name="estimated_hours" min="0" step="0.5" value="{{ old('estimated_hours') }}"
+                                    placeholder="0"
+                                    class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="flex space-x-3 p-6 border-t border-gray-200">
+                <button type="button" @click="showNewWorkOrderModal = false"
+                    class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-all">
+                    Cancel
+                </button>
+                <button type="submit" form="newWorkOrderForm"
+                    class="flex-1 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-medium hover:shadow-lg transition-all">
+                    Create Work Order
+                </button>
+            </div>
+        </div>
+    </div>
+    </template>
+
 </div>
 @endsection
 
@@ -342,6 +471,7 @@ function maintenanceManagement() {
         analytics: @json($analytics),
         selectedTask: null,
         activeView: 'kanban',
+        showNewWorkOrderModal: {{ ($openModal || $errors->any()) ? 'true' : 'false' }},
         
         init() {
             this.animateNumbers();
@@ -354,6 +484,7 @@ function maintenanceManagement() {
         
         animateNumbers() {
             const animateValue = (element, start, end, duration) => {
+                if (!element) return;
                 const startTimestamp = Date.now();
                 const step = () => {
                     const timestamp = Date.now();
@@ -366,18 +497,15 @@ function maintenanceManagement() {
                 };
                 requestAnimationFrame(step);
             };
-            
+
             setTimeout(() => {
-                const elements = document.querySelectorAll('[x-text*="formatNumber"]');
-                animateValue(elements[0], 0, this.stats.activeOrders, 1500);
-                animateValue(elements[1], 0, this.stats.overdue, 1200);
+                animateValue(document.getElementById('stat-active-orders'), 0, this.stats.activeOrders, 1500);
+                animateValue(document.getElementById('stat-overdue'),        0, this.stats.overdue,       1200);
             }, 500);
         },
         
         selectTask(task) {
             this.selectedTask = task;
-            // In a real application, this would open a modal or navigate to task details
-            console.log('Selected task:', task);
         },
         
         initCharts() {

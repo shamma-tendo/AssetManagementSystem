@@ -147,50 +147,39 @@
         <div class="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-6 shadow-xl">
             <h2 class="text-xl font-bold text-gray-900 mb-4">Recent Activity</h2>
             <div class="space-y-4">
-                <!-- Activity Item 1 -->
+                @forelse($stats['recentActivity'] as $activity)
+                @php
+                    $iconPath = match($activity['color']) {
+                        'green'  => 'M5 13l4 4L19 7',
+                        'yellow' => 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z',
+                        'red'    => 'M6 18L18 6M6 6l12 12',
+                        default  => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
+                    };
+                    $bgClass   = 'bg-' . $activity['color'] . '-500/20';
+                    $textClass = 'text-' . $activity['color'] . '-600';
+                @endphp
                 <div class="flex items-start space-x-3">
-                    <div class="p-2 bg-green-500/20 rounded-full">
-                        <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    <div class="p-2 {{ $bgClass }} rounded-full flex-shrink-0">
+                        <svg class="w-4 h-4 {{ $textClass }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $iconPath }}"></path>
                         </svg>
                     </div>
-                    <div class="flex-1">
-                        <p class="text-sm font-medium text-gray-900">Work order completed</p>
-                        <p class="text-xs text-gray-600">PMP-112-SYS maintenance finished</p>
-                        <p class="text-xs text-gray-500 mt-1">2 minutes ago</p>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-gray-900">{{ $activity['title'] }}</p>
+                        <p class="text-xs text-gray-600 truncate">{{ $activity['description'] }}</p>
+                        <p class="text-xs text-gray-500 mt-1">{{ $activity['time'] }}</p>
                     </div>
                 </div>
-                
-                <!-- Activity Item 2 -->
-                <div class="flex items-start space-x-3">
-                    <div class="p-2 bg-yellow-500/20 rounded-full">
-                        <svg class="w-4 h-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z"></path>
-                        </svg>
-                    </div>
-                    <div class="flex-1">
-                        <p class="text-sm font-medium text-gray-900">Telemetry alert</p>
-                        <p class="text-xs text-gray-600">Temperature spike detected on CNC-420-B</p>
-                        <p class="text-xs text-gray-500 mt-1">15 minutes ago</p>
-                    </div>
+                @empty
+                <div class="text-center py-6">
+                    <svg class="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                    </svg>
+                    <p class="text-sm text-gray-500">No recent work order activity</p>
                 </div>
-                
-                <!-- Activity Item 3 -->
-                <div class="flex items-start space-x-3">
-                    <div class="p-2 bg-blue-500/20 rounded-full">
-                        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                        </svg>
-                    </div>
-                    <div class="flex-1">
-                        <p class="text-sm font-medium text-gray-900">User assigned</p>
-                        <p class="text-xs text-gray-600">Mike Johnson assigned to TRK-8821</p>
-                        <p class="text-xs text-gray-500 mt-1">1 hour ago</p>
-                    </div>
-                </div>
+                @endforelse
             </div>
-            
-            <a href="#" class="block mt-6 text-center text-sm font-medium text-blue-600 hover:text-blue-700">View All Activity</a>
+            <a href="{{ route('maintenance') }}" class="block mt-6 text-center text-sm font-medium text-blue-600 hover:text-blue-700">View All Activity</a>
         </div>
     </div>
     
@@ -214,83 +203,39 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <!-- Row 1 -->
+                    @forelse($stats['highPriorityMaintenance'] as $task)
                     <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
                         <td class="py-3 px-4">
                             <div class="flex items-center space-x-2">
-                                <div class="w-2 h-2 bg-red-500 rounded-full"></div>
-                                <span class="text-sm font-medium text-gray-900">CNC-420-B</span>
+                                <div class="w-2 h-2 bg-{{ $task['dot_color'] }}-500 rounded-full"></div>
+                                <span class="text-sm font-medium text-gray-900">{{ $task['asset_id'] }}</span>
                             </div>
                         </td>
-                        <td class="py-3 px-4 text-sm text-gray-700">Preventive</td>
+                        <td class="py-3 px-4 text-sm text-gray-700">{{ $task['type'] }}</td>
                         <td class="py-3 px-4">
                             <div class="flex items-center space-x-2">
                                 <div class="w-16 bg-white/20 rounded-full h-2">
-                                    <div class="bg-red-500 h-2 rounded-full" style="width: 85%"></div>
+                                    <div class="bg-{{ $task['dot_color'] }}-500 h-2 rounded-full" style="width: {{ $task['health'] }}%"></div>
                                 </div>
-                                <span class="text-xs text-gray-600">85%</span>
+                                <span class="text-xs text-gray-600">{{ $task['health'] }}%</span>
                             </div>
                         </td>
-                        <td class="py-3 px-4 text-sm text-gray-700">2024-05-15</td>
+                        <td class="py-3 px-4 text-sm text-gray-700">{{ $task['due_date'] }}</td>
                         <td class="py-3 px-4">
-                            <span class="px-2 py-1 text-xs font-medium rounded-full bg-red-100/80 text-red-700 border border-red-200/50">OVERDUE</span>
+                            <span class="px-2 py-1 text-xs font-medium rounded-full border {{ $task['badge_class'] }}">{{ $task['status'] }}</span>
                         </td>
                         <td class="py-3 px-4">
-                            <button class="px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">Inspect</button>
+                            <a href="{{ route('maintenance') }}"
+                               class="px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">Inspect</a>
                         </td>
                     </tr>
-                    
-                    <!-- Row 2 -->
-                    <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
-                        <td class="py-3 px-4">
-                            <div class="flex items-center space-x-2">
-                                <div class="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                                <span class="text-sm font-medium text-gray-900">PMP-112-SYS</span>
-                            </div>
-                        </td>
-                        <td class="py-3 px-4 text-sm text-gray-700">Corrective</td>
-                        <td class="py-3 px-4">
-                            <div class="flex items-center space-x-2">
-                                <div class="w-16 bg-white/20 rounded-full h-2">
-                                    <div class="bg-yellow-500 h-2 rounded-full" style="width: 60%"></div>
-                                </div>
-                                <span class="text-xs text-gray-600">60%</span>
-                            </div>
-                        </td>
-                        <td class="py-3 px-4 text-sm text-gray-700">2024-05-18</td>
-                        <td class="py-3 px-4">
-                            <span class="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100/80 text-yellow-700 border border-yellow-200/50">SCHEDULED</span>
-                        </td>
-                        <td class="py-3 px-4">
-                            <button class="px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">Inspect</button>
+                    @empty
+                    <tr>
+                        <td colspan="6" class="py-10 text-center text-sm text-gray-500">
+                            No high-priority work orders at this time.
                         </td>
                     </tr>
-                    
-                    <!-- Row 3 -->
-                    <tr class="hover:bg-white/5 transition-colors">
-                        <td class="py-3 px-4">
-                            <div class="flex items-center space-x-2">
-                                <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                <span class="text-sm font-medium text-gray-900">TRK-8821</span>
-                            </div>
-                        </td>
-                        <td class="py-3 px-4 text-sm text-gray-700">Predictive</td>
-                        <td class="py-3 px-4">
-                            <div class="flex items-center space-x-2">
-                                <div class="w-16 bg-white/20 rounded-full h-2">
-                                    <div class="bg-blue-500 h-2 rounded-full" style="width: 30%"></div>
-                                </div>
-                                <span class="text-xs text-gray-600">30%</span>
-                            </div>
-                        </td>
-                        <td class="py-3 px-4 text-sm text-gray-700">2024-05-20</td>
-                        <td class="py-3 px-4">
-                            <span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100/80 text-blue-700 border border-blue-200/50">QUEUED</span>
-                        </td>
-                        <td class="py-3 px-4">
-                            <button class="px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">Inspect</button>
-                        </td>
-                    </tr>
+                    @endforelse
                 </tbody>
             </table>
         </div>
@@ -354,13 +299,15 @@ function dashboard() {
             gradient2.addColorStop(0, 'rgba(147, 51, 234, 0.4)');
             gradient2.addColorStop(1, 'rgba(147, 51, 234, 0.1)');
             
+            const utilization = @json($stats['assetUtilization']);
+
             new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'],
+                    labels: utilization.labels,
                     datasets: [{
                         label: 'Current',
-                        data: [85, 88, 82, 90, 87, 92, 89],
+                        data: utilization.current,
                         backgroundColor: gradient1,
                         borderColor: 'rgba(59, 130, 246, 1)',
                         borderWidth: 2,
@@ -368,7 +315,7 @@ function dashboard() {
                         barThickness: 40
                     }, {
                         label: 'Previous',
-                        data: [78, 82, 80, 85, 83, 88, 86],
+                        data: utilization.previous,
                         backgroundColor: gradient2,
                         borderColor: 'rgba(147, 51, 234, 1)',
                         borderWidth: 2,

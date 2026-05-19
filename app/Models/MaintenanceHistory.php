@@ -10,6 +10,7 @@ class MaintenanceHistory extends Model
 {
     use HasFactory, HasUuids;
 
+    protected $table = 'maintenance_history';
     protected $keyType = 'string';
     protected $primaryKey = 'id';
     public $incrementing = false;

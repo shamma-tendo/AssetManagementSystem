@@ -134,7 +134,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
         document.querySelectorAll('.fade-in').forEach(el => {
             el.style.opacity = '1';
-            el.style.transform = 'translateY(0)';
+            el.style.transform = '';
         });
     }, 100);
 });

@@ -51,13 +51,14 @@ class DashboardController extends Controller
     }
     
     /**
-     * Get critical alerts count.
+     * Get critical alerts count — urgent/emergency open work orders + assets under maintenance.
      */
     private function getCriticalAlerts()
     {
-        return SensorReading::where('quality', 'poor')
-            ->orWhere('error_code', '!=', null)
-            ->orWhere('value', '>', 90) // High temperature/pressure alerts
+        $terminal = ['completed', 'closed', 'cancelled'];
+
+        return WorkOrder::whereNotIn('status', $terminal)
+            ->whereIn('priority', ['urgent', 'emergency'])
             ->count();
     }
     
@@ -66,7 +67,7 @@ class DashboardController extends Controller
      */
     private function getActiveWorkOrders()
     {
-        return WorkOrder::whereIn('status', ['pending', 'in_progress'])->count();
+        return WorkOrder::whereNotIn('status', ['completed', 'closed', 'cancelled'])->count();
     }
     
     /**
@@ -80,170 +81,148 @@ class DashboardController extends Controller
     }
     
     /**
-     * Get asset utilization data.
+     * Get asset utilization data — proxied from work order open counts vs total assets.
      */
     private function getAssetUtilization()
     {
-        // Get sensor readings for the last 7 days grouped by day
-        $utilizationData = SensorReading::selectRaw('DATE(timestamp) as date, AVG(value) as utilization')
-            ->where('timestamp', '>=', now()->subDays(7))
-            ->groupBy('date')
-            ->orderBy('date')
-            ->get();
-        
-        // Prepare data for chart
-        $labels = [];
-        $current = [];
+        $total     = max(Asset::count(), 1);
+        $activeBase = Asset::where('status', 'active')->count();
+        $baseUtil   = max(50, (int) round(($activeBase / $total) * 100));
+
+        // Prefetch all WOs touched in the last 14 days
+        $allWOs = WorkOrder::whereNotIn('status', ['cancelled'])
+            ->where('created_at', '>=', now()->subWeeks(2)->startOfDay())
+            ->get(['created_at', 'completed_at']);
+
+        $labels   = [];
+        $current  = [];
         $previous = [];
-        
+
         for ($i = 6; $i >= 0; $i--) {
-            $date = now()->subDays($i);
-            $labels[] = $date->format('D');
-            
-            $dayData = $utilizationData->where('date', $date->format('Y-m-d'))->first();
-            $current[] = $dayData ? round($dayData->utilization, 1) : 85;
-            $previous[] = round(85 - rand(5, 15), 1); // Previous week data
+            $date     = now()->subDays($i);
+            $prevDate = $date->copy()->subWeek();
+
+            $labels[] = strtoupper($date->format('D'));
+
+            $open = $allWOs->filter(fn($wo) =>
+                $wo->created_at->lte($date->copy()->endOfDay()) &&
+                ($wo->completed_at === null || $wo->completed_at->gte($date->copy()->startOfDay()))
+            )->count();
+
+            $current[] = max(55, min(100, $baseUtil - min(15, (int) round($open / $total * 100))));
+
+            $prevOpen = $allWOs->filter(fn($wo) =>
+                $wo->created_at->lte($prevDate->copy()->endOfDay()) &&
+                ($wo->completed_at === null || $wo->completed_at->gte($prevDate->copy()->startOfDay()))
+            )->count();
+
+            $previous[] = max(55, min(100, $baseUtil - min(15, (int) round($prevOpen / $total * 100))));
         }
-        
-        return [
-            'labels' => $labels,
-            'current' => $current,
-            'previous' => $previous,
-        ];
+
+        return compact('labels', 'current', 'previous');
     }
     
     /**
-     * Get recent activity.
+     * Get recent activity from work orders updated in the last 7 days.
      */
-    private function getRecentActivity()
+    private function getRecentActivity(): array
     {
-        $activities = collect();
-        
-        // Get recent completed work orders
-        $completedWorkOrders = WorkOrder::where('status', 'completed')
-            ->with('asset')
-            ->orderBy('completed_at', 'desc')
-            ->limit(3)
-            ->get();
-            
-        foreach ($completedWorkOrders as $workOrder) {
-            $activities->push([
-                'type' => 'work_order_completed',
-                'title' => 'Work order completed',
-                'description' => "{$workOrder->asset->name} maintenance finished",
-                'timestamp' => $workOrder->completed_at,
-                'icon' => 'check-circle',
-                'color' => 'green'
-            ]);
-        }
-        
-        // Get recent sensor alerts
-        $recentAlerts = SensorReading::where('quality', 'poor')
-            ->orWhere('error_code', '!=', null)
-            ->with('sensor.asset')
-            ->orderBy('created_at', 'desc')
-            ->limit(3)
-            ->get();
-            
-        foreach ($recentAlerts as $reading) {
-            $activities->push([
-                'type' => 'telemetry_alert',
-                'title' => 'Telemetry alert',
-                'description' => "{$reading->sensor->asset->name} sensor anomaly detected",
-                'timestamp' => $reading->created_at,
-                'icon' => 'exclamation-triangle',
-                'color' => 'yellow'
-            ]);
-        }
-        
-        // Get recent user assignments
-        $recentAssignments = WorkOrder::whereNotNull('assigned_to')
-            ->where('assigned_at', '>=', now()->subHours(24))
-            ->with(['assignedTo', 'asset'])
-            ->orderBy('assigned_at', 'desc')
-            ->limit(2)
-            ->get();
-            
-        foreach ($recentAssignments as $workOrder) {
-            $activities->push([
-                'type' => 'user_assigned',
-                'title' => 'User assigned',
-                'description' => "{$workOrder->assignedTo->name} assigned to {$workOrder->asset->name}",
-                'timestamp' => $workOrder->assigned_at,
-                'icon' => 'user',
-                'color' => 'blue'
-            ]);
-        }
-        
-        return $activities->sortByDesc('timestamp')->take(5)->values()->all();
+        return WorkOrder::with(['asset', 'assignedTo'])
+            ->orderByDesc('updated_at')
+            ->limit(8)
+            ->get()
+            ->map(function ($wo) {
+                $sv = $wo->status instanceof \BackedEnum ? $wo->status->value : (string) $wo->status;
+
+                [$title, $description, $color] = match ($sv) {
+                    'completed', 'closed' => [
+                        'Work order completed',
+                        ($wo->title ?? 'Maintenance') . ' on ' . ($wo->asset?->name ?? 'asset') . ' finished',
+                        'green',
+                    ],
+                    'in_progress' => [
+                        'Work order in progress',
+                        ($wo->assignedTo?->name ?? 'Technician') . ' working on ' . ($wo->asset?->serial_number ?? 'asset'),
+                        'yellow',
+                    ],
+                    'cancelled' => [
+                        'Work order cancelled',
+                        $wo->title ?? 'Work order was cancelled',
+                        'red',
+                    ],
+                    default => [
+                        'Work order ' . str_replace('_', ' ', $sv),
+                        ($wo->title ?? 'Work order') . ' — ' . ($wo->asset?->name ?? 'asset'),
+                        'blue',
+                    ],
+                };
+
+                return [
+                    'type'        => $sv,
+                    'title'       => $title,
+                    'description' => $description,
+                    'time'        => $wo->updated_at->diffForHumans(),
+                    'color'       => $color,
+                ];
+            })
+            ->toArray();
     }
     
     /**
-     * Get high priority maintenance tasks.
+     * Get high-priority open work orders for the dashboard table.
      */
-    private function getHighPriorityMaintenance()
+    private function getHighPriorityMaintenance(): array
     {
-        // Get overdue maintenance schedules
-        $overdueSchedules = MaintenanceSchedule::where('due_date', '<', now())
-            ->where('status', 'pending')
-            ->with(['asset', 'assignedTo'])
-            ->orderBy('due_date')
-            ->limit(3)
-            ->get();
-            
-        $highPriorityTasks = collect();
-        
-        foreach ($overdueSchedules as $schedule) {
-            $statusColor = match($schedule->priority) {
-                'critical' => 'red',
-                'high' => 'orange',
-                'medium' => 'yellow',
-                'low' => 'blue',
-                default => 'gray'
-            };
-            
-            $highPriorityTasks->push([
-                'asset_id' => $schedule->asset->serial_number,
-                'type' => ucfirst($schedule->type),
-                'condition' => $schedule->condition_score ?? 0,
-                'due_date' => $schedule->due_date->format('Y-m-d'),
-                'status' => 'OVERDUE',
-                'status_color' => $statusColor,
-                'schedule_id' => $schedule->id,
-                'assigned_to' => $schedule->assignedTo?->name
-            ]);
-        }
-        
-        // Get high priority work orders
-        $highPriorityWorkOrders = WorkOrder::whereIn('priority', ['critical', 'high'])
-            ->whereIn('status', ['pending', 'in_progress'])
-            ->with(['asset', 'assignedTo'])
-            ->orderBy('priority')
-            ->orderBy('created_at')
-            ->limit(5 - $highPriorityTasks->count())
-            ->get();
-            
-        foreach ($highPriorityWorkOrders as $workOrder) {
-            $statusColor = match($workOrder->status) {
-                'pending' => 'yellow',
-                'in_progress' => 'blue',
-                'scheduled' => 'green',
-                default => 'gray'
-            };
-            
-            $highPriorityTasks->push([
-                'asset_id' => $workOrder->asset->serial_number,
-                'type' => ucfirst($workOrder->type?->name ?? $workOrder->type),
-                'condition' => 0,
-                'due_date' => $workOrder->scheduled_date?->format('Y-m-d') ?? 'TBD',
-                'status' => strtoupper($workOrder->status?->value ?? $workOrder->status),
-                'status_color' => $statusColor,
-                'work_order_id' => $workOrder->id,
-                'assigned_to' => $workOrder->assignedTo?->name
-            ]);
-        }
-        
-        return $highPriorityTasks->take(5)->values()->all();
+        $terminal = ['completed', 'closed', 'cancelled'];
+
+        return WorkOrder::with('asset')
+            ->whereNotIn('status', $terminal)
+            ->whereIn('priority', ['emergency', 'urgent', 'high'])
+            ->orderByRaw("CASE priority WHEN 'emergency' THEN 1 WHEN 'urgent' THEN 2 ELSE 3 END")
+            ->orderBy('scheduled_date')
+            ->limit(5)
+            ->get()
+            ->map(function ($wo) {
+                $sv = $wo->status instanceof \BackedEnum   ? $wo->status->value   : (string) $wo->status;
+                $pv = $wo->priority instanceof \BackedEnum ? $wo->priority->value : (string) $wo->priority;
+                $tv = $wo->type instanceof \BackedEnum     ? $wo->type->value     : (string) $wo->type;
+
+                $isOverdue = $wo->scheduled_date && $wo->scheduled_date->isPast();
+
+                $statusLabel = $isOverdue
+                    ? 'OVERDUE'
+                    : strtoupper(str_replace('_', ' ', $sv));
+
+                $dotColor = match (true) {
+                    $isOverdue || $pv === 'emergency' => 'red',
+                    $pv === 'urgent'                  => 'orange',
+                    default                           => 'yellow',
+                };
+
+                $badgeClass = match ($statusLabel) {
+                    'OVERDUE'     => 'bg-red-100/80 text-red-700 border-red-200/50',
+                    'IN PROGRESS' => 'bg-blue-100/80 text-blue-700 border-blue-200/50',
+                    'SCHEDULED'   => 'bg-green-100/80 text-green-700 border-green-200/50',
+                    default       => 'bg-yellow-100/80 text-yellow-700 border-yellow-200/50',
+                };
+
+                $health = max(20, 85 - match ($pv) {
+                    'emergency' => 50,
+                    'urgent'    => 35,
+                    default     => 20,
+                });
+
+                return [
+                    'asset_id'    => $wo->asset?->serial_number ?? 'N/A',
+                    'type'        => ucwords(str_replace('_', ' ', $tv)),
+                    'health'      => $health,
+                    'due_date'    => $wo->scheduled_date?->format('Y-m-d') ?? 'TBD',
+                    'status'      => $statusLabel,
+                    'dot_color'   => $dotColor,
+                    'badge_class' => $badgeClass,
+                ];
+            })
+            ->toArray();
     }
     
     /**

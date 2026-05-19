@@ -2,8 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Asset;
+use App\Models\User;
+use App\Models\WorkOrder;
+use App\Models\WorkOrderStatus;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 
 class MaintenanceController extends Controller
@@ -13,415 +17,314 @@ class MaintenanceController extends Controller
      */
     public function index()
     {
-        // Get maintenance statistics
-        $stats = $this->getMaintenanceStats();
-        
-        // Get maintenance tasks
-        $tasks = $this->getMaintenanceTasks();
-        
-        // Get maintenance analytics data
+        $stats     = $this->getMaintenanceStats();
+        $tasks     = $this->getMaintenanceTasks();
         $analytics = $this->getMaintenanceAnalytics();
-        
-        return view('maintenance', compact('stats', 'tasks', 'analytics'));
+        $assets    = Asset::orderBy('name')->get(['id', 'name', 'serial_number']);
+        $users     = User::orderBy('name')->get(['id', 'name']);
+        $openModal = request()->boolean('new');
+
+        return view('maintenance', compact('stats', 'tasks', 'analytics', 'assets', 'users', 'openModal'));
     }
     
     /**
-     * Get maintenance statistics.
+     * Show the standalone New Work Order form.
      */
-    private function getMaintenanceStats()
+    public function create()
     {
+        $assets = Asset::orderBy('name')->get(['id', 'name', 'serial_number']);
+        $users  = User::orderBy('name')->get(['id', 'name']);
+
+        return view('work-order-create', compact('assets', 'users'));
+    }
+
+    /**
+     * Get maintenance statistics from the database.
+     */
+    private function getMaintenanceStats(): array
+    {
+        $terminal = ['completed', 'closed', 'cancelled'];
+
+        $activeOrders = WorkOrder::whereNotIn('status', $terminal)->count();
+
+        $overdue = WorkOrder::whereNotIn('status', $terminal)
+            ->whereNotNull('scheduled_date')
+            ->where('scheduled_date', '<', now()->toDateString())
+            ->count();
+
+        $since          = now()->subDays(30);
+        $totalPM        = WorkOrder::where('type', 'preventive_maintenance')->where('created_at', '>=', $since)->count();
+        $completedPM    = WorkOrder::where('type', 'preventive_maintenance')->whereIn('status', ['completed', 'closed'])->where('created_at', '>=', $since)->count();
+        $compliance     = $totalPM > 0 ? round(($completedPM / $totalPM) * 100, 1) : 100.0;
+
         return [
-            'activeOrders' => 24,
-            'overdue' => 4,
-            'preventiveCompliance' => 98.2,
+            'activeOrders'         => $activeOrders,
+            'overdue'              => $overdue,
+            'preventiveCompliance' => $compliance,
         ];
     }
     
     /**
-     * Get maintenance tasks for Kanban board.
+     * Get work orders grouped into Kanban columns from the database.
      */
-    private function getMaintenanceTasks()
+    private function getMaintenanceTasks(): array
     {
+        $terminal        = ['completed', 'closed', 'cancelled'];
+        $pendingStatuses = ['requested', 'approved', 'assigned', 'scheduled'];
+
+        $overdue = WorkOrder::with(['asset', 'assignedTo'])
+            ->whereNotIn('status', $terminal)
+            ->whereNotNull('scheduled_date')
+            ->where('scheduled_date', '<', now()->toDateString())
+            ->orderBy('scheduled_date')
+            ->limit(20)
+            ->get()
+            ->map(fn($wo) => $this->formatWorkOrder($wo))
+            ->values()
+            ->toArray();
+
+        $pending = WorkOrder::with(['asset', 'assignedTo'])
+            ->whereIn('status', $pendingStatuses)
+            ->where(function ($q) {
+                $q->whereNull('scheduled_date')
+                  ->orWhere('scheduled_date', '>=', now()->toDateString());
+            })
+            ->orderBy('scheduled_date')
+            ->limit(20)
+            ->get()
+            ->map(fn($wo) => $this->formatWorkOrder($wo))
+            ->values()
+            ->toArray();
+
+        $inProgress = WorkOrder::with(['asset', 'assignedTo'])
+            ->whereIn('status', ['in_progress', 'on_hold'])
+            ->orderByDesc('started_at')
+            ->limit(20)
+            ->get()
+            ->map(fn($wo) => $this->formatWorkOrder($wo))
+            ->values()
+            ->toArray();
+
+        return compact('pending', 'inProgress', 'overdue');
+    }
+
+    /**
+     * Normalise a WorkOrder model into the array shape the view expects.
+     */
+    private function formatWorkOrder(WorkOrder $wo): array
+    {
+        $sv = $wo->status instanceof \BackedEnum ? $wo->status->value : (string) $wo->status;
+        $pv = $wo->priority instanceof \BackedEnum ? $wo->priority->value : (string) $wo->priority;
+
+        $progress = match($sv) {
+            'in_progress'        => 50,
+            'on_hold'            => 30,
+            'completed', 'closed' => 100,
+            default              => 0,
+        };
+
+        $overdueDays = ($wo->scheduled_date && $wo->scheduled_date->isPast())
+            ? (int) now()->diffInDays($wo->scheduled_date)
+            : 0;
+
+        $priorityDisplay = match($pv) {
+            'low'                    => 'LOW',
+            'normal'                 => 'MEDIUM',
+            'high'                   => 'HIGH',
+            'urgent', 'emergency'    => 'CRITICAL',
+            default                  => strtoupper($pv),
+        };
+
         return [
-            'pending' => [
-                [
-                    'id' => 'WO-2024-089',
-                    'title' => 'Compressor Unit #4 Vibration Check',
-                    'description' => 'Scheduled vibration analysis and bearing inspection for main compressor unit',
-                    'priority' => 'MEDIUM',
-                    'asset' => 'CMP-004-A',
-                    'technician' => 'Sarah Chen',
-                    'dueDate' => '2024-05-18',
-                    'estimatedHours' => 4,
-                    'progress' => 0
-                ],
-                [
-                    'id' => 'WO-2024-090',
-                    'title' => 'Facility Lighting Upgrade',
-                    'description' => 'Replace LED fixtures in production area with energy-efficient models',
-                    'priority' => 'LOW',
-                    'asset' => 'FAC-LIGHT-01',
-                    'technician' => 'Mike Johnson',
-                    'dueDate' => '2024-05-22',
-                    'estimatedHours' => 8,
-                    'progress' => 0
-                ],
-                [
-                    'id' => 'WO-2024-091',
-                    'title' => 'Conveyor Belt Tension Adjustment',
-                    'description' => 'Adjust belt tension and alignment for conveyor system B',
-                    'priority' => 'HIGH',
-                    'asset' => 'CNV-042-B',
-                    'technician' => 'David Kim',
-                    'dueDate' => '2024-05-16',
-                    'estimatedHours' => 2,
-                    'progress' => 0
-                ],
-                [
-                    'id' => 'WO-2024-092',
-                    'title' => 'Control Panel Calibration',
-                    'description' => 'Calibrate temperature and pressure sensors on control panel',
-                    'priority' => 'MEDIUM',
-                    'asset' => 'CTRL-015-C',
-                    'technician' => 'Emily Rodriguez',
-                    'dueDate' => '2024-05-19',
-                    'estimatedHours' => 3,
-                    'progress' => 0
-                ],
-                [
-                    'id' => 'WO-2024-093',
-                    'title' => 'Hydraulic System Inspection',
-                    'description' => 'Inspect hydraulic lines and check for leaks in press system',
-                    'priority' => 'HIGH',
-                    'asset' => 'HYD-008-P',
-                    'technician' => 'Tom Wilson',
-                    'dueDate' => '2024-05-17',
-                    'estimatedHours' => 6,
-                    'progress' => 0
-                ],
-                [
-                    'id' => 'WO-2024-094',
-                    'title' => 'Motor Bearing Replacement',
-                    'description' => 'Replace worn bearings on main drive motor',
-                    'priority' => 'MEDIUM',
-                    'asset' => 'MOT-023-D',
-                    'technician' => 'Alex Turner',
-                    'dueDate' => '2024-05-20',
-                    'estimatedHours' => 5,
-                    'progress' => 0
-                ],
-                [
-                    'id' => 'WO-2024-095',
-                    'title' => 'Safety Sensor Testing',
-                    'description' => 'Test and calibrate all emergency stop sensors',
-                    'priority' => 'HIGH',
-                    'asset' => 'SAFE-ALL-01',
-                    'technician' => 'Lisa Park',
-                    'dueDate' => '2024-05-15',
-                    'estimatedHours' => 4,
-                    'progress' => 0
-                ],
-                [
-                    'id' => 'WO-2024-096',
-                    'title' => 'Filter System Maintenance',
-                    'description' => 'Replace air filters and clean ventilation system',
-                    'priority' => 'LOW',
-                    'asset' => 'FILT-012-V',
-                    'technician' => 'James Brown',
-                    'dueDate' => '2024-05-25',
-                    'estimatedHours' => 3,
-                    'progress' => 0
-                ]
-            ],
-            'inProgress' => [
-                [
-                    'id' => 'WO-2024-085',
-                    'title' => 'Conveyor Belt #12 Replacement',
-                    'description' => 'Replace worn conveyor belt section and realign tracking system',
-                    'priority' => 'HIGH',
-                    'asset' => 'CNV-012-A',
-                    'technician' => 'Robert Martinez',
-                    'dueDate' => '2024-05-14',
-                    'estimatedHours' => 6,
-                    'progress' => 65
-                ],
-                [
-                    'id' => 'WO-2024-086',
-                    'title' => 'Pump Seal Replacement',
-                    'description' => 'Replace mechanical seals on primary water pump',
-                    'priority' => 'MEDIUM',
-                    'asset' => 'PMP-007-W',
-                    'technician' => 'Jennifer Lee',
-                    'dueDate' => '2024-05-15',
-                    'estimatedHours' => 4,
-                    'progress' => 40
-                ],
-                [
-                    'id' => 'WO-2024-087',
-                    'title' => 'Electrical Panel Upgrade',
-                    'description' => 'Upgrade circuit breakers and add surge protection',
-                    'priority' => 'MEDIUM',
-                    'asset' => 'ELEC-003-P',
-                    'technician' => 'Carlos Garcia',
-                    'dueDate' => '2024-05-16',
-                    'estimatedHours' => 8,
-                    'progress' => 25
-                ],
-                [
-                    'id' => 'WO-2024-088',
-                    'title' => 'Robot Arm Calibration',
-                    'description' => 'Calibrate robotic arm precision and test movement patterns',
-                    'priority' => 'HIGH',
-                    'asset' => 'ROB-009-R',
-                    'technician' => 'Nina Patel',
-                    'dueDate' => '2024-05-13',
-                    'estimatedHours' => 5,
-                    'progress' => 80
-                ],
-                [
-                    'id' => 'WO-2024-097',
-                    'title' => 'HVAC Filter Replacement',
-                    'description' => 'Replace HVAC filters and clean ductwork',
-                    'priority' => 'LOW',
-                    'asset' => 'HVAC-002-M',
-                    'technician' => 'Steve Davis',
-                    'dueDate' => '2024-05-14',
-                    'estimatedHours' => 2,
-                    'progress' => 50
-                ]
-            ],
-            'overdue' => [
-                [
-                    'id' => 'WO-2024-078',
-                    'title' => 'Emergency HVAC Calibration',
-                    'description' => 'Critical HVAC system calibration affecting production area',
-                    'priority' => 'CRITICAL',
-                    'asset' => 'HVAC-001-M',
-                    'technician' => 'Urgent Assignment',
-                    'dueDate' => '2024-05-10',
-                    'estimatedHours' => 3,
-                    'progress' => 0,
-                    'overdueDays' => 4
-                ],
-                [
-                    'id' => 'WO-2024-079',
-                    'title' => 'Motor Overheating Issue',
-                    'description' => 'Motor showing excessive temperature readings, immediate inspection required',
-                    'priority' => 'CRITICAL',
-                    'asset' => 'MOT-015-D',
-                    'technician' => 'Emergency Response',
-                    'dueDate' => '2024-05-11',
-                    'estimatedHours' => 2,
-                    'progress' => 0,
-                    'overdueDays' => 3
-                ],
-                [
-                    'id' => 'WO-2024-080',
-                    'title' => 'Pressure Vessel Inspection',
-                    'description' => 'Annual inspection of pressure vessel for safety compliance',
-                    'priority' => 'HIGH',
-                    'asset' => 'PRESS-004-V',
-                    'technician' => 'Safety Inspector',
-                    'dueDate' => '2024-05-12',
-                    'estimatedHours' => 6,
-                    'progress' => 0,
-                    'overdueDays' => 2
-                ],
-                [
-                    'id' => 'WO-2024-081',
-                    'title' => 'Fire Suppression System Test',
-                    'description' => 'Monthly test of fire suppression system and alarms',
-                    'priority' => 'HIGH',
-                    'asset' => 'FIRE-ALL-01',
-                    'technician' => 'Safety Team',
-                    'dueDate' => '2024-05-13',
-                    'estimatedHours' => 2,
-                    'progress' => 0,
-                    'overdueDays' => 1
-                ]
-            ]
+            'id'             => 'WO-' . strtoupper(substr($wo->id, 0, 8)),
+            'uuid'           => $wo->id,
+            'title'          => $wo->title,
+            'description'    => $wo->description ?? '',
+            'priority'       => $priorityDisplay,
+            'type'           => $wo->type instanceof \BackedEnum ? $wo->type->value : (string) $wo->type,
+            'asset'          => $wo->asset?->serial_number ?? 'Unassigned',
+            'assetName'      => $wo->asset?->name ?? 'Unknown Asset',
+            'technician'     => $wo->assignedTo?->name ?? 'Unassigned',
+            'dueDate'        => $wo->scheduled_date?->format('Y-m-d') ?? 'TBD',
+            'estimatedHours' => (float) ($wo->estimated_hours ?? 0),
+            'progress'       => $progress,
+            'status'         => $sv,
+            'overdueDays'    => $overdueDays,
         ];
     }
     
     /**
-     * Get maintenance analytics data.
+     * Build analytics data for the last 6 months from real work order records.
      */
-    private function getMaintenanceAnalytics()
+    private function getMaintenanceAnalytics(): array
     {
+        $months = collect(range(5, 0))->map(fn($i) => now()->subMonths($i));
+
+        $completionRate = $months->map(function ($month) {
+            $start = $month->copy()->startOfMonth();
+            $end   = $month->copy()->endOfMonth();
+            $total     = WorkOrder::whereBetween('scheduled_date', [$start, $end])->count();
+            $completed = WorkOrder::whereBetween('scheduled_date', [$start, $end])
+                ->whereIn('status', ['completed', 'closed'])->count();
+            return $total > 0 ? round(($completed / $total) * 100) : 0;
+        });
+
+        $responseTime = $months->map(function ($month) {
+            $start = $month->copy()->startOfMonth();
+            $end   = $month->copy()->endOfMonth();
+            $avg = WorkOrder::whereBetween('created_at', [$start, $end])
+                ->whereNotNull('started_at')
+                ->selectRaw('AVG((julianday(started_at) - julianday(created_at)) * 24) as avg_hours')
+                ->value('avg_hours');
+            return round($avg ?? 0, 1);
+        });
+
+        $weeks = collect(range(3, 0))->map(fn($i) => [
+            'label' => 'Week ' . (4 - $i),
+            'start' => now()->subWeeks($i)->startOfWeek(),
+            'end'   => now()->subWeeks($i)->endOfWeek(),
+        ]);
+
+        $downtime = $weeks->map(fn($w) => round(
+            WorkOrder::whereBetween('completed_at', [$w['start'], $w['end']])
+                ->whereNotNull('actual_hours')
+                ->sum('actual_hours'),
+            1
+        ));
+
         return [
             'completionRate' => [
-                'labels' => ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-                'data' => [92, 88, 95, 91, 94, 89]
+                'labels' => $months->map(fn($m) => $m->format('M'))->values()->toArray(),
+                'data'   => $completionRate->values()->toArray(),
             ],
             'responseTime' => [
-                'labels' => ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-                'data' => [2.5, 2.8, 2.2, 2.6, 2.3, 2.4]
+                'labels' => $months->map(fn($m) => $m->format('M'))->values()->toArray(),
+                'data'   => $responseTime->values()->toArray(),
             ],
             'downtime' => [
-                'labels' => ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
-                'data' => [12, 8, 15, 6]
-            ]
+                'labels' => $weeks->pluck('label')->values()->toArray(),
+                'data'   => $downtime->values()->toArray(),
+            ],
         ];
     }
     
     /**
-     * Get task details via API.
+     * Get full work order details via API (taskId = UUID).
      */
     public function getTaskDetails($taskId)
     {
-        $tasks = $this->getMaintenanceTasks();
-        $task = null;
-        
-        // Search for task in all columns
-        foreach ($tasks as $column) {
-            $found = collect($column)->firstWhere('id', $taskId);
-            if ($found) {
-                $task = $found;
-                break;
-            }
+        $wo = WorkOrder::with(['asset', 'assignedTo'])->find($taskId);
+
+        if (!$wo) {
+            return response()->json(['success' => false, 'message' => 'Work order not found'], 404);
         }
-        
-        if (!$task) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Task not found'
-            ], 404);
-        }
-        
-        return response()->json([
-            'success' => true,
-            'data' => $task
-        ]);
+
+        return response()->json(['success' => true, 'data' => $this->formatWorkOrder($wo)]);
     }
     
     /**
-     * Update task status.
+     * Update work order status (taskId = UUID).
+     * Triggers WorkOrderObserver which auto-syncs the linked asset status.
      */
     public function updateTaskStatus(Request $request, $taskId)
     {
         $request->validate([
-            'status' => 'required|string|in:pending,in_progress,completed,overdue',
-            'progress' => 'nullable|integer|min:0|max:100'
+            'status' => 'required|in:requested,approved,assigned,scheduled,in_progress,on_hold,completed,closed,cancelled',
         ]);
-        
-        // In a real application, this would update the database
-        return response()->json([
-            'success' => true,
-            'message' => 'Task status updated successfully',
-            'data' => [
-                'taskId' => $taskId,
-                'status' => $request->input('status'),
-                'progress' => $request->input('progress', 0)
-            ]
-        ]);
+
+        $wo        = WorkOrder::findOrFail($taskId);
+        $oldStatus = $wo->status;
+        $newStatus = WorkOrderStatus::from($request->status);
+
+        if (!$oldStatus->canTransitionTo($newStatus)) {
+            return response()->json([
+                'success' => false,
+                'message' => "Cannot transition from {$oldStatus->getDisplayName()} to {$newStatus->getDisplayName()}",
+            ], 422);
+        }
+
+        $updates = ['status' => $request->status];
+        if ($newStatus === WorkOrderStatus::IN_PROGRESS && !$wo->started_at) {
+            $updates['started_at'] = now();
+        }
+        if ($newStatus === WorkOrderStatus::COMPLETED && !$wo->completed_at) {
+            $updates['completed_at'] = now();
+        }
+        if ($newStatus === WorkOrderStatus::CLOSED && !$wo->closed_at) {
+            $updates['closed_at'] = now();
+        }
+
+        $wo->update($updates);
+
+        return response()->json(['success' => true, 'message' => 'Status updated successfully']);
     }
     
     /**
-     * Create new work order.
+     * Save a new work order to the database.
+     * Triggers WorkOrderObserver → asset status becomes under_maintenance.
      */
     public function createWorkOrder(Request $request)
     {
-        $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'required|string',
-            'priority' => 'required|string|in:LOW,MEDIUM,HIGH,CRITICAL',
-            'asset' => 'required|string',
-            'technician' => 'nullable|string',
-            'dueDate' => 'required|date',
-            'estimatedHours' => 'required|integer|min:1'
+        $validated = $request->validate([
+            'title'           => 'required|string|max:255',
+            'description'     => 'required|string',
+            'type'            => 'required|in:preventive_maintenance,corrective_maintenance,emergency_maintenance,inspection,calibration,installation,removal,upgrade,repair,other',
+            'priority'        => 'required|in:low,normal,high,urgent,emergency',
+            'asset_id'        => 'required|exists:assets,id',
+            'assigned_to'     => 'nullable|exists:users,id',
+            'scheduled_date'  => 'nullable|date',
+            'estimated_hours' => 'nullable|numeric|min:0',
         ]);
-        
-        // In a real application, this would create a new record in the database
-        return response()->json([
-            'success' => true,
-            'message' => 'Work order created successfully',
-            'data' => [
-                'id' => 'WO-2024-' . rand(100, 999),
-                'title' => $request->input('title'),
-                'description' => $request->input('description'),
-                'priority' => $request->input('priority'),
-                'asset' => $request->input('asset'),
-                'technician' => $request->input('technician'),
-                'dueDate' => $request->input('dueDate'),
-                'estimatedHours' => $request->input('estimatedHours'),
-                'status' => 'pending',
-                'progress' => 0,
-                'createdAt' => now()->toISOString()
-            ]
-        ]);
+
+        $actorId = Auth::id() ?? User::first()?->id;
+
+        $wo = WorkOrder::create(array_merge($validated, [
+            'status'       => 'requested',
+            'requested_by' => $actorId,
+            'created_by'   => $actorId,
+            'assigned_to'  => $validated['assigned_to'] ?? null,
+        ]));
+
+        return redirect()->route('maintenance')
+            ->with('success', 'Work order "' . $wo->title . '" created successfully!');
     }
     
     /**
-     * Export maintenance data.
+     * Export all non-terminal work orders as CSV.
      */
     public function exportMaintenance(Request $request)
     {
-        $format = $request->input('format', 'csv');
-        $tasks = $this->getMaintenanceTasks();
-        
-        // Flatten all tasks for export
-        $allTasks = [];
-        foreach ($tasks as $status => $taskList) {
-            foreach ($taskList as $task) {
-                $task['status'] = $status;
-                $allTasks[] = $task;
-            }
-        }
-        
-        switch ($format) {
-            case 'csv':
-                return $this->exportCsv($allTasks);
-            case 'excel':
-                return $this->exportExcel($allTasks);
-            default:
-                return response()->json($allTasks);
-        }
+        $tasks = WorkOrder::with(['asset', 'assignedTo'])
+            ->whereNotIn('status', ['completed', 'closed', 'cancelled'])
+            ->orderBy('scheduled_date')
+            ->get()
+            ->map(fn($wo) => $this->formatWorkOrder($wo))
+            ->toArray();
+
+        return match ($request->input('format', 'csv')) {
+            'excel' => response()->json(['message' => 'Excel export not implemented yet', 'data' => $tasks]),
+            default => $this->exportCsv($tasks),
+        };
     }
-    
-    /**
-     * Export data as CSV.
-     */
-    private function exportCsv($tasks)
+
+    private function exportCsv(array $tasks)
     {
         $headers = [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="maintenance_tasks.csv"'
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="maintenance_' . now()->format('Y-m-d') . '.csv"',
         ];
-        
-        $callback = function() use ($tasks) {
+
+        return response()->stream(function () use ($tasks) {
             $file = fopen('php://output', 'w');
-            
-            // Header
-            fputcsv($file, ['Work Order ID', 'Title', 'Priority', 'Asset', 'Technician', 'Due Date', 'Status', 'Progress']);
-            
-            // Data
-            foreach ($tasks as $task) {
+            fputcsv($file, ['Work Order ID', 'Title', 'Priority', 'Type', 'Asset', 'Technician', 'Due Date', 'Est. Hours', 'Status', 'Progress']);
+            foreach ($tasks as $t) {
                 fputcsv($file, [
-                    $task['id'],
-                    $task['title'],
-                    $task['priority'],
-                    $task['asset'],
-                    $task['technician'],
-                    $task['dueDate'],
-                    $task['status'],
-                    $task['progress'] . '%'
+                    $t['id'], $t['title'], $t['priority'], $t['type'],
+                    $t['asset'], $t['technician'], $t['dueDate'],
+                    $t['estimatedHours'], $t['status'], $t['progress'] . '%',
                 ]);
             }
-            
             fclose($file);
-        };
-        
-        return response()->stream($callback, 200, $headers);
-    }
-    
-    /**
-     * Export data as Excel.
-     */
-    private function exportExcel($tasks)
-    {
-        return response()->json([
-            'message' => 'Excel export not implemented yet',
-            'data' => $tasks
-        ]);
+        }, 200, $headers);
     }
 }

@@ -72,6 +72,14 @@ class Asset extends Model
     }
 
     /**
+     * Get the maintenance history records for this asset.
+     */
+    public function maintenanceHistories()
+    {
+        return $this->hasMany(MaintenanceHistory::class);
+    }
+
+    /**
      * Get the maintenance schedules for this asset.
      */
     public function maintenanceSchedules()

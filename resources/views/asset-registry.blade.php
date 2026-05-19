@@ -4,13 +4,32 @@
 
 @section('content')
 <div x-data="assetRegistry()" x-init="init()">
-    
+
+    @if(session('success'))
+    <div class="mb-6 p-4 bg-green-100/80 border border-green-200/50 rounded-xl text-green-700 text-sm font-medium flex items-center">
+        <svg class="w-5 h-5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        {{ session('success') }}
+    </div>
+    @endif
+
+    @if($errors->any())
+    <div class="mb-6 p-4 bg-red-100/80 border border-red-200/50 rounded-xl text-red-700 text-sm font-medium">
+        <ul class="space-y-1">
+            @foreach($errors->all() as $error)
+                <li class="flex items-center"><svg class="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z"></path></svg>{{ $error }}</li>
+            @endforeach
+        </ul>
+    </div>
+    @endif
+
     <!-- Page Header -->
     <div class="mb-8">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <h1 class="text-3xl font-bold text-gray-900 mb-2">System Asset Registry</h1>
-                <p class="text-gray-600">Manage and track <span x-text="formatNumber(stats.totalAssets)">1,248</span> critical industrial units.</p>
+                <p class="text-gray-600">Manage and track <span x-text="formatNumber(stats.totalAssets)"></span> critical industrial units.</p>
             </div>
             <div class="flex items-center space-x-3 mt-4 sm:mt-0">
                 <!-- Filter Button -->
@@ -48,10 +67,9 @@
                     <label class="block text-sm font-medium text-gray-700 mb-2">Category</label>
                     <select class="w-full px-3 py-2 bg-white/20 backdrop-blur-sm border border-white/30 rounded-lg text-sm text-gray-900 placeholder-gray-500">
                         <option>All Categories</option>
-                        <option>Material Handling</option>
-                        <option>Automation</option>
-                        <option>Fluid Systems</option>
-                        <option>Power Systems</option>
+                        @foreach($categories as $cat)
+                            <option>{{ $cat->name }}</option>
+                        @endforeach
                     </select>
                 </div>
                 <div>
@@ -67,9 +85,9 @@
                     <label class="block text-sm font-medium text-gray-700 mb-2">Location</label>
                     <select class="w-full px-3 py-2 bg-white/20 backdrop-blur-sm border border-white/30 rounded-lg text-sm text-gray-900 placeholder-gray-500">
                         <option>All Locations</option>
-                        <option>Factory Floor A</option>
-                        <option>Assembly Line B</option>
-                        <option>Pumping Station C</option>
+                        @foreach($locations as $loc)
+                            <option>{{ $loc->name }}</option>
+                        @endforeach
                     </select>
                 </div>
                 <div>
@@ -100,7 +118,7 @@
             </div>
             <div class="space-y-1">
                 <p class="text-sm text-gray-600 font-medium">Total Assets</p>
-                <p class="text-3xl font-bold text-gray-900" x-text="formatNumber(stats.totalAssets)">1,248</p>
+                <p id="stat-total" class="text-3xl font-bold text-gray-900" x-text="formatNumber(stats.totalAssets)"></p>
             </div>
             <div class="mt-4">
                 <div class="w-full bg-white/20 rounded-full h-2">
@@ -121,7 +139,7 @@
             </div>
             <div class="space-y-1">
                 <p class="text-sm text-gray-600 font-medium">Operational</p>
-                <p class="text-3xl font-bold text-gray-900" x-text="formatNumber(stats.operational)">1,182</p>
+                <p id="stat-operational" class="text-3xl font-bold text-gray-900" x-text="formatNumber(stats.operational)"></p>
             </div>
             <div class="mt-4">
                 <div class="w-full bg-white/20 rounded-full h-2">
@@ -142,7 +160,7 @@
             </div>
             <div class="space-y-1">
                 <p class="text-sm text-gray-600 font-medium">In Repair</p>
-                <p class="text-3xl font-bold text-gray-900" x-text="formatNumber(stats.inRepair)">42</p>
+                <p id="stat-inrepair" class="text-3xl font-bold text-gray-900" x-text="formatNumber(stats.inRepair)"></p>
             </div>
             <div class="mt-4">
                 <div class="w-full bg-white/20 rounded-full h-2">
@@ -163,7 +181,7 @@
             </div>
             <div class="space-y-1">
                 <p class="text-sm text-gray-600 font-medium">Uptime Avg.</p>
-                <p class="text-3xl font-bold text-gray-900" x-text="stats.uptimeAvg + '%'">99.2%</p>
+                <p class="text-3xl font-bold text-gray-900" x-text="stats.uptimeAvg + '%'"></p>
             </div>
             <div class="mt-4">
                 <div class="w-full bg-white/20 rounded-full h-2">
@@ -312,7 +330,7 @@
                         <!-- Asset ID -->
                         <div>
                             <p class="text-sm text-gray-500 mb-1">Asset ID</p>
-                            <p class="text-lg font-bold text-gray-900" x-text="selectedAsset?.id || 'CNV-9821-X'"></p>
+                            <p class="text-lg font-bold text-gray-900" x-text="selectedAsset?.id"></p>
                         </div>
                         
                         <!-- Separator -->
@@ -321,25 +339,25 @@
                         <!-- Manufacturer -->
                         <div>
                             <p class="text-sm text-gray-500 mb-1">Manufacturer</p>
-                            <p class="text-sm text-gray-900" x-text="selectedAsset?.manufacturer || 'TechConveyor Inc.'"></p>
+                            <p class="text-sm text-gray-900" x-text="selectedAsset?.manufacturer"></p>
                         </div>
                         
                         <!-- Installed Date -->
                         <div>
                             <p class="text-sm text-gray-500 mb-1">Installed Date</p>
-                            <p class="text-sm text-gray-900" x-text="selectedAsset?.installedDate || '2022-03-15'"></p>
+                            <p class="text-sm text-gray-900" x-text="selectedAsset?.installedDate"></p>
                         </div>
                         
                         <!-- Warranty End -->
                         <div>
                             <p class="text-sm text-gray-500 mb-1">Warranty End</p>
-                            <p class="text-sm text-gray-900" x-text="selectedAsset?.warrantyEnd || '2025-03-15'"></p>
+                            <p class="text-sm text-gray-900" x-text="selectedAsset?.warrantyEnd"></p>
                         </div>
                         
                         <!-- Power Requirement -->
                         <div>
                             <p class="text-sm text-gray-500 mb-1">Power Requirement</p>
-                            <p class="text-sm text-gray-900" x-text="selectedAsset?.powerRequirement || '15kW'"></p>
+                            <p class="text-sm text-gray-900" x-text="selectedAsset?.powerRequirement"></p>
                         </div>
                         
                         <!-- Separator -->
@@ -352,9 +370,9 @@
                                 <div class="flex-1 bg-white/20 rounded-full h-3">
                                     <div class="h-3 rounded-full transition-all duration-300"
                                          :class="selectedAsset?.health >= 90 ? 'bg-green-500' : selectedAsset?.health >= 70 ? 'bg-yellow-500' : selectedAsset?.health >= 50 ? 'bg-orange-500' : 'bg-red-500'"
-                                         :style="`width: ${selectedAsset?.health || 92}%`"></div>
+                                         :style="`width: ${selectedAsset?.health ?? 0}%`"></div>
                                 </div>
-                                <span class="text-sm font-medium text-gray-900" x-text="(selectedAsset?.health || 92) + '%'"></span>
+                                <span class="text-sm font-medium text-gray-900" x-text="(selectedAsset?.health ?? 0) + '%'"></span>
                             </div>
                         </div>
                         
@@ -396,10 +414,12 @@
     </div>
     
     <!-- New Asset Modal -->
+    <template x-teleport="body">
     <div x-show="showNewAssetModal" x-transition class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div class="fixed inset-0 bg-black/50" @click="showNewAssetModal = false"></div>
-        <div class="relative bg-white/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl max-w-lg w-full p-6">
-            <div class="flex items-center justify-between mb-6">
+        <div class="relative bg-white/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between p-6 border-b border-gray-200">
                 <h2 class="text-xl font-bold text-gray-900">Add New Asset</h2>
                 <button @click="showNewAssetModal = false" class="p-2 rounded-lg hover:bg-gray-100">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -407,48 +427,91 @@
                     </svg>
                 </button>
             </div>
-            <form method="POST" action="{{ route('asset-registry.store') }}">
+            <!-- Modal Body (scrollable) -->
+            <div class="overflow-y-auto flex-1 p-6">
+            <form id="newAssetForm" method="POST" action="{{ route('asset-registry.store') }}">
                 @csrf
                 <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Asset Name</label>
-                        <input type="text" name="name" required class="w-full px-3 py-2 bg-white/50 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Serial Number</label>
-                        <input type="text" name="serial_number" required class="w-full px-3 py-2 bg-white/50 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Category</label>
-                        <select name="category" required class="w-full px-3 py-2 bg-white/50 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                            <option value="">Select Category</option>
-                            <option value="Material Handling">Material Handling</option>
-                            <option value="Production Equipment">Production Equipment</option>
-                            <option value="HVAC">HVAC</option>
-                            <option value="Electrical">Electrical</option>
-                            <option value="Other">Other</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                        <select name="status" required class="w-full px-3 py-2 bg-white/50 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                            <option value="active">Active</option>
-                            <option value="under_maintenance">Under Maintenance</option>
-                            <option value="retired">Retired</option>
-                        </select>
-                    </div>
-                    <div class="flex space-x-3 pt-4">
-                        <button type="button" @click="showNewAssetModal = false" class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-all">
-                            Cancel
-                        </button>
-                        <button type="submit" class="flex-1 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-medium hover:shadow-lg transition-all">
-                            Create Asset
-                        </button>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Asset Name <span class="text-red-500">*</span></label>
+                            <input type="text" name="name" required value="{{ old('name') }}"
+                                class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Serial Number <span class="text-red-500">*</span></label>
+                            <input type="text" name="serial_number" required value="{{ old('serial_number') }}"
+                                class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Status <span class="text-red-500">*</span></label>
+                            <select name="status" required class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="active" {{ old('status') == 'active' ? 'selected' : '' }}>Active</option>
+                                <option value="ordered" {{ old('status') == 'ordered' ? 'selected' : '' }}>Ordered</option>
+                                <option value="received" {{ old('status') == 'received' ? 'selected' : '' }}>Received</option>
+                                <option value="under_maintenance" {{ old('status') == 'under_maintenance' ? 'selected' : '' }}>Under Maintenance</option>
+                                <option value="retired" {{ old('status') == 'retired' ? 'selected' : '' }}>Retired</option>
+                                <option value="disposed" {{ old('status') == 'disposed' ? 'selected' : '' }}>Disposed</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Category <span class="text-red-500">*</span></label>
+                            <select name="category_id" required class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="">Select Category</option>
+                                @foreach($categories as $cat)
+                                    <option value="{{ $cat->id }}" {{ old('category_id') == $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
+                                @endforeach
+                            </select>
+                            @if($categories->isEmpty())
+                                <p class="mt-1 text-xs text-red-500">No categories found. Run <code>php artisan db:seed</code> first.</p>
+                            @endif
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Location <span class="text-red-500">*</span></label>
+                            <select name="location_id" required class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="">Select Location</option>
+                                @foreach($locations as $loc)
+                                    <option value="{{ $loc->id }}" {{ old('location_id') == $loc->id ? 'selected' : '' }}>{{ $loc->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Purchase Date <span class="text-red-500">*</span></label>
+                            <input type="date" name="purchase_date" required value="{{ old('purchase_date') }}"
+                                class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Purchase Cost <span class="text-red-500">*</span></label>
+                            <input type="number" name="purchase_cost" required min="0" step="0.01" value="{{ old('purchase_cost') }}"
+                                placeholder="0.00"
+                                class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Manufacturer</label>
+                            <input type="text" name="manufacturer" value="{{ old('manufacturer') }}"
+                                class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Warranty Expiry</label>
+                            <input type="date" name="warranty_expiry" value="{{ old('warranty_expiry') }}"
+                                class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
                     </div>
                 </div>
             </form>
+            </div>
+            <!-- Modal Footer -->
+            <div class="flex space-x-3 p-6 border-t border-gray-200">
+                <button type="button" @click="showNewAssetModal = false" class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-all">
+                    Cancel
+                </button>
+                <button type="submit" form="newAssetForm" class="flex-1 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-medium hover:shadow-lg transition-all">
+                    Create Asset
+                </button>
+            </div>
         </div>
     </div>
+    </template>
 
 </div>
 @endsection
@@ -463,7 +526,7 @@ function assetRegistry() {
         selectedAsset: null,
         activeTab: 'all',
         showFilters: false,
-        showNewAssetModal: false,
+        showNewAssetModal: {{ $errors->any() ? 'true' : 'false' }},
         
         get filteredAssets() {
             if (this.activeTab === 'all') return this.assets;
@@ -484,6 +547,7 @@ function assetRegistry() {
         
         animateNumbers() {
             const animateValue = (element, start, end, duration) => {
+                if (!element) return;
                 const startTimestamp = Date.now();
                 const step = () => {
                     const timestamp = Date.now();
@@ -498,11 +562,9 @@ function assetRegistry() {
             };
             
             setTimeout(() => {
-                const elements = document.querySelectorAll('[x-text*="formatNumber"]');
-                // Animate the numbers
-                animateValue(elements[0], 0, this.stats.totalAssets, 2000);
-                animateValue(elements[1], 0, this.stats.operational, 1800);
-                animateValue(elements[2], 0, this.stats.inRepair, 1600);
+                animateValue(document.getElementById('stat-total'),       0, this.stats.totalAssets, 2000);
+                animateValue(document.getElementById('stat-operational'),  0, this.stats.operational, 1800);
+                animateValue(document.getElementById('stat-inrepair'),     0, this.stats.inRepair,    1600);
             }, 500);
         },
         

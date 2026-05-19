@@ -2,7 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Asset;
+use App\Models\Category;
+use App\Models\Location;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -11,145 +15,133 @@ class AssetRegistryController extends Controller
     /**
      * Display the asset registry page.
      */
-    public function index()
+    public function index(Request $request)
     {
-        // Get asset registry statistics
-        $stats = $this->getAssetStats();
-        
-        // Get assets data
-        $assets = $this->getAssets();
-        
-        // Get maintenance history data
+        $q = trim($request->input('q', ''));
+
+        $dbAssets = Asset::with(['category', 'location'])
+            ->withMax('maintenanceHistories', 'performed_date')
+            ->when($q !== '', function ($query) use ($q) {
+                $query->where(function ($sub) use ($q) {
+                    $sub->where('name', 'like', "%{$q}%")
+                        ->orWhere('serial_number', 'like', "%{$q}%")
+                        ->orWhereHas('category', fn($c) => $c->where('name', 'like', "%{$q}%"));
+                });
+            })
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        $assets = $dbAssets->map(fn($a) => $this->formatAsset($a))->values()->toArray();
+
+        $stats = [
+            'totalAssets' => Asset::count(),
+            'operational' => Asset::where('status', 'active')->count(),
+            'inRepair'    => Asset::where('status', 'under_maintenance')->count(),
+            'uptimeAvg'   => 99.2,
+        ];
+
+        $categories         = Category::orderBy('name')->get(['id', 'name']);
+        $locations          = Location::orderBy('name')->get(['id', 'name']);
         $maintenanceHistory = $this->getMaintenanceHistory();
-        
-        return view('asset-registry', compact('stats', 'assets', 'maintenanceHistory'));
+
+        return view('asset-registry', compact('stats', 'assets', 'maintenanceHistory', 'categories', 'locations'));
     }
-    
+
     /**
-     * Get asset statistics.
+     * Map a DB Asset to the array format expected by the view.
      */
-    private function getAssetStats()
+    private function formatAsset(Asset $asset): array
     {
+        $statusMap = [
+            'active'            => 'ACTIVE',
+            'ordered'           => 'ORDERED',
+            'received'          => 'RECEIVED',
+            'under_maintenance' => 'IN REPAIR',
+            'retired'           => 'RETIRED',
+            'disposed'          => 'DISPOSED',
+        ];
+
+        $sv = $asset->status instanceof \BackedEnum
+            ? $asset->status->value
+            : (string) $asset->status;
+
+        $lastMaintDate = $asset->maintenance_histories_max_performed_date;
+
         return [
-            'totalAssets' => 1248,
-            'operational' => 1182,
-            'inRepair' => 42,
-            'uptimeAvg' => 99.2,
+            'id'               => $asset->serial_number,
+            'name'             => $asset->name,
+            'category'         => $asset->category?->name ?? 'Uncategorized',
+            'location'         => $asset->location?->name ?? 'N/A',
+            'health'           => $this->calculateHealth($asset, $sv, $lastMaintDate),
+            'status'           => $statusMap[$sv] ?? strtoupper($sv),
+            'lastMaintenance'  => $lastMaintDate ?? $asset->purchase_date?->format('Y-m-d') ?? 'N/A',
+            'manufacturer'     => $asset->manufacturer ?? 'N/A',
+            'installedDate'    => $asset->purchase_date?->format('Y-m-d') ?? 'N/A',
+            'warrantyEnd'      => $asset->warranty_expiry?->format('Y-m-d') ?? 'N/A',
+            'powerRequirement' => 'N/A',
         ];
     }
-    
+
     /**
-     * Get assets data for the registry.
+     * Calculate a real health score (0-100) from three weighted factors:
+     *   40% — age vs. useful life (depreciation-based)
+     *   40% — maintenance recency (days since last completed maintenance)
+     *   20% — current operational status
      */
-    private function getAssets()
+    private function calculateHealth(Asset $asset, string $sv, ?string $lastMaintDate): int
     {
-        return [
-            [
-                'id' => 'CNV-9821-X',
-                'name' => 'Conveyor System Alpha',
-                'category' => 'Material Handling',
-                'location' => 'Factory Floor A',
-                'health' => 92,
-                'status' => 'ACTIVE',
-                'lastMaintenance' => '2024-05-10',
-                'manufacturer' => 'TechConveyor Inc.',
-                'installedDate' => '2022-03-15',
-                'warrantyEnd' => '2025-03-15',
-                'powerRequirement' => '15kW'
-            ],
-            [
-                'id' => 'RBT-4412-M',
-                'name' => 'Robotic Arm Unit 12',
-                'category' => 'Automation',
-                'location' => 'Assembly Line B',
-                'health' => 78,
-                'status' => 'IN REPAIR',
-                'lastMaintenance' => '2024-05-08',
-                'manufacturer' => 'RoboTech Systems',
-                'installedDate' => '2021-11-20',
-                'warrantyEnd' => '2024-11-20',
-                'powerRequirement' => '8kW'
-            ],
-            [
-                'id' => 'PMP-0034-L',
-                'name' => 'Industrial Pump Lambda',
-                'category' => 'Fluid Systems',
-                'location' => 'Pumping Station C',
-                'health' => 95,
-                'status' => 'ACTIVE',
-                'lastMaintenance' => '2024-05-12',
-                'manufacturer' => 'PumpMaster Pro',
-                'installedDate' => '2023-01-10',
-                'warrantyEnd' => '2026-01-10',
-                'powerRequirement' => '22kW'
-            ],
-            [
-                'id' => 'GEN-7722-H',
-                'name' => 'Generator Unit H',
-                'category' => 'Power Systems',
-                'location' => 'Power House D',
-                'health' => 88,
-                'status' => 'ACTIVE',
-                'lastMaintenance' => '2024-05-05',
-                'manufacturer' => 'PowerGen Corp',
-                'installedDate' => '2020-08-15',
-                'warrantyEnd' => '2023-08-15',
-                'powerRequirement' => '500kW'
-            ],
-            [
-                'id' => 'SEN-2201-T',
-                'name' => 'Temperature Sensor Array',
-                'category' => 'Monitoring',
-                'location' => 'Control Room E',
-                'health' => 99,
-                'status' => 'ACTIVE',
-                'lastMaintenance' => '2024-05-11',
-                'manufacturer' => 'SenseTech Inc.',
-                'installedDate' => '2023-06-01',
-                'warrantyEnd' => '2026-06-01',
-                'powerRequirement' => '0.5kW'
-            ],
-            [
-                'id' => 'MOT-5533-P',
-                'name' => 'Motor Drive System P',
-                'category' => 'Drives',
-                'location' => 'Motor Room F',
-                'health' => 65,
-                'status' => 'IN REPAIR',
-                'lastMaintenance' => '2024-04-28',
-                'manufacturer' => 'DriveTech Ltd',
-                'installedDate' => '2019-12-10',
-                'warrantyEnd' => '2022-12-10',
-                'powerRequirement' => '35kW'
-            ],
-            [
-                'id' => 'VAL-8844-V',
-                'name' => 'Control Valve V',
-                'category' => 'Control Systems',
-                'location' => 'Process Line G',
-                'health' => 91,
-                'status' => 'ACTIVE',
-                'lastMaintenance' => '2024-05-09',
-                'manufacturer' => 'ValveControl Pro',
-                'installedDate' => '2022-09-20',
-                'warrantyEnd' => '2025-09-20',
-                'powerRequirement' => '2kW'
-            ],
-            [
-                'id' => 'HLT-9966-H',
-                'name' => 'Hydraulic Lift H',
-                'category' => 'Lifting Systems',
-                'location' => 'Warehouse H',
-                'health' => 45,
-                'status' => 'RETIRED',
-                'lastMaintenance' => '2024-03-15',
-                'manufacturer' => 'LiftTech Systems',
-                'installedDate' => '2018-05-10',
-                'warrantyEnd' => '2021-05-10',
-                'powerRequirement' => '18kW'
-            ]
-        ];
+        // --- Status factor (20%) ---
+        $statusScore = match($sv) {
+            'ordered', 'received'  => 100,
+            'active'               => 100,
+            'under_maintenance'    => 60,
+            'retired'              => 20,
+            'disposed'             => 0,
+            default                => 80,
+        };
+
+        // Short-circuit: retired / disposed assets don't need a detailed score
+        if (in_array($sv, ['retired', 'disposed'])) {
+            return $statusScore;
+        }
+
+        // New assets (ordered/received) are considered fully healthy
+        if (in_array($sv, ['ordered', 'received'])) {
+            return 100;
+        }
+
+        // --- Age factor (40%) ---
+        $usefulLife = max(1, $asset->useful_life_years ?? 10);
+        $ageYears   = $asset->purchase_date
+            ? $asset->purchase_date->diffInDays(now()) / 365.25
+            : $usefulLife * 0.5; // assume mid-life if unknown
+        $ageScore = (int) round(max(0, (1 - min(1.0, $ageYears / $usefulLife)) * 100));
+
+        // --- Maintenance recency factor (40%) ---
+        if ($lastMaintDate) {
+            $daysSince = now()->diffInDays(Carbon::parse($lastMaintDate));
+        } else {
+            // No recorded maintenance — penalise based on asset age
+            $daysSince = $asset->purchase_date
+                ? $asset->purchase_date->diffInDays(now())
+                : 730;
+        }
+
+        $maintenanceScore = match(true) {
+            $daysSince <= 30  => 100,
+            $daysSince <= 90  => 85,
+            $daysSince <= 180 => 70,
+            $daysSince <= 365 => 50,
+            $daysSince <= 730 => 30,
+            default           => 10,
+        };
+
+        // --- Weighted total ---
+        $health = ($ageScore * 0.4) + ($maintenanceScore * 0.4) + ($statusScore * 0.2);
+
+        return (int) max(0, min(100, round($health)));
     }
+    
     
     /**
      * Get maintenance history data for charts.
@@ -167,22 +159,17 @@ class AssetRegistryController extends Controller
     /**
      * Get asset details via API.
      */
-    public function getAssetDetails($assetId)
+    public function getAssetDetails(string $assetId)
     {
-        $assets = $this->getAssets();
-        $asset = collect($assets)->firstWhere('id', $assetId);
-        
+        $asset = Asset::with(['category', 'location'])
+            ->where('serial_number', $assetId)
+            ->first();
+
         if (!$asset) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Asset not found'
-            ], 404);
+            return response()->json(['success' => false, 'message' => 'Asset not found'], 404);
         }
-        
-        return response()->json([
-            'success' => true,
-            'data' => $asset
-        ]);
+
+        return response()->json(['success' => true, 'data' => $this->formatAsset($asset)]);
     }
     
     /**
@@ -190,17 +177,16 @@ class AssetRegistryController extends Controller
      */
     public function exportAssets(Request $request)
     {
+        $assets = Asset::with(['category', 'location'])
+            ->get()
+            ->map(fn($a) => $this->formatAsset($a));
+
         $format = $request->input('format', 'csv');
-        $assets = $this->getAssets();
-        
-        switch ($format) {
-            case 'csv':
-                return $this->exportCsv($assets);
-            case 'excel':
-                return $this->exportExcel($assets);
-            default:
-                return response()->json($assets);
-        }
+
+        return match ($format) {
+            'excel' => $this->exportExcel($assets),
+            default => $this->exportCsv($assets),
+        };
     }
     
     /**
@@ -209,33 +195,22 @@ class AssetRegistryController extends Controller
     private function exportCsv($assets)
     {
         $headers = [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="asset_registry.csv"'
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="asset_registry_' . now()->format('Y-m-d') . '.csv"',
         ];
-        
-        $callback = function() use ($assets) {
+
+        return response()->stream(function () use ($assets) {
             $file = fopen('php://output', 'w');
-            
-            // Header
-            fputcsv($file, ['Asset ID', 'Name', 'Category', 'Location', 'Health', 'Status', 'Last Maintenance']);
-            
-            // Data
+            fputcsv($file, ['Asset ID', 'Name', 'Category', 'Location', 'Health', 'Status', 'Last Maintenance', 'Manufacturer', 'Installed Date', 'Warranty End']);
             foreach ($assets as $asset) {
                 fputcsv($file, [
-                    $asset['id'],
-                    $asset['name'],
-                    $asset['category'],
-                    $asset['location'],
-                    $asset['health'] . '%',
-                    $asset['status'],
-                    $asset['lastMaintenance']
+                    $asset['id'], $asset['name'], $asset['category'], $asset['location'],
+                    $asset['health'] . '%', $asset['status'], $asset['lastMaintenance'],
+                    $asset['manufacturer'], $asset['installedDate'], $asset['warrantyEnd'],
                 ]);
             }
-            
             fclose($file);
-        };
-        
-        return response()->stream($callback, 200, $headers);
+        }, 200, $headers);
     }
     
     /**
@@ -250,19 +225,25 @@ class AssetRegistryController extends Controller
     }
 
     /**
-     * Store a new asset.
+     * Store a new asset in the database.
      */
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'serial_number' => 'required|string|max:100|unique:assets,serial_number',
-            'category' => 'required|string',
-            'status' => 'required|in:active,under_maintenance,retired',
+            'name'            => 'required|string|max:255',
+            'serial_number'   => 'required|string|max:100|unique:assets,serial_number',
+            'category_id'     => 'required|exists:categories,id',
+            'location_id'     => 'required|exists:locations,id',
+            'status'          => 'required|in:ordered,received,active,under_maintenance,retired,disposed',
+            'purchase_date'   => 'required|date',
+            'purchase_cost'   => 'required|numeric|min:0',
+            'manufacturer'    => 'nullable|string|max:255',
+            'warranty_expiry' => 'nullable|date',
         ]);
 
-        // For now, return success message
-        // In a real implementation, you would save to the database
-        return redirect()->route('asset-registry')->with('success', 'Asset created successfully!');
+        Asset::create(array_merge($validated, ['created_by' => Auth::id()]));
+
+        return redirect()->route('asset-registry')
+            ->with('success', 'Asset "' . $validated['name'] . '" created successfully!');
     }
 }
