@@ -26,42 +26,20 @@ Route::post('/register', [LoginController::class, 'register'])->name('register.p
 // ── Protected routes (require authentication) ───────────────────────────
 Route::middleware('auth')->group(function () {
 
-    // Dashboard
-    Route::get('/dashboard',         [DashboardController::class, 'index'])->name('dashboard');
-    Route::get('/dashboard/realtime',[DashboardController::class, 'getRealTimeData'])->name('dashboard.realtime');
-    Route::post('/dashboard/export', [DashboardController::class, 'exportReport'])->name('dashboard.export');
+    // ── Viewer+ : any authenticated user ────────────────────────────────
+    Route::get('/dashboard',          [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard/realtime', [DashboardController::class, 'getRealTimeData'])->name('dashboard.realtime');
 
-    // Asset Registry
-    Route::get('/asset-registry',                        [AssetRegistryController::class, 'index'])->name('asset-registry');
-    Route::get('/asset-registry/{assetId}/details',      [AssetRegistryController::class, 'getAssetDetails'])->name('asset-registry.details');
-    Route::post('/asset-registry/store',                 [AssetRegistryController::class, 'store'])->name('asset-registry.store');
-    Route::match(['get','post'],'/asset-registry/export',[AssetRegistryController::class, 'exportAssets'])->name('asset-registry.export');
+    Route::get('/asset-registry',                   [AssetRegistryController::class, 'index'])->name('asset-registry');
+    Route::get('/asset-registry/{assetId}/details', [AssetRegistryController::class, 'getAssetDetails'])->name('asset-registry.details');
 
-    // Maintenance
-    Route::get('/maintenance',                        [MaintenanceController::class, 'index'])->name('maintenance');
-    Route::get('/maintenance/work-orders/create',     [MaintenanceController::class, 'create'])->name('maintenance.work-orders.create');
-    Route::get('/maintenance/{taskId}/details',       [MaintenanceController::class, 'getTaskDetails'])->name('maintenance.details');
-    Route::put('/maintenance/{taskId}/status',        [MaintenanceController::class, 'updateTaskStatus'])->name('maintenance.update-status');
-    Route::post('/maintenance/work-order',            [MaintenanceController::class, 'createWorkOrder'])->name('maintenance.create-work-order');
-    Route::post('/maintenance/export',                [MaintenanceController::class, 'exportMaintenance'])->name('maintenance.export');
+    Route::get('/maintenance',                  [MaintenanceController::class, 'index'])->name('maintenance');
+    Route::get('/maintenance/{taskId}/details', [MaintenanceController::class, 'getTaskDetails'])->name('maintenance.details');
 
-    // Inventory
-    Route::get('/inventory',                   [InventoryController::class, 'index'])->name('inventory');
-    Route::get('/inventory/report',            [InventoryController::class, 'generateReport'])->name('inventory.report');
-    Route::get('/inventory/{itemId}/details',  [InventoryController::class, 'getItemDetails'])->name('inventory.details');
-    Route::put('/inventory/{itemId}/stock',    [InventoryController::class, 'updateStock'])->name('inventory.update-stock');
-    Route::post('/inventory/item',             [InventoryController::class, 'createItem'])->name('inventory.create-item');
-    Route::post('/inventory/export',           [InventoryController::class, 'exportInventory'])->name('inventory.export');
+    Route::get('/inventory',                  [InventoryController::class, 'index'])->name('inventory');
+    Route::get('/inventory/{itemId}/details', [InventoryController::class, 'getItemDetails'])->name('inventory.details');
 
-    // Analytics
-    Route::get('/analytics',         [AnalyticsController::class, 'index'])->name('analytics');
-    Route::post('/analytics/export', [AnalyticsController::class, 'export'])->name('analytics.export');
-
-    // Settings
-    Route::get('/settings', [SettingsController::class, 'index'])->name('settings');
-
-    // Global search + notifications (navbar)
-    Route::get('/search',               function (\Illuminate\Http\Request $request) {
+    Route::get('/search', function (\Illuminate\Http\Request $request) {
         $q = trim($request->input('q', ''));
         if (strlen($q) < 2) return response()->json([]);
         $results = \App\Models\Asset::with('category')
@@ -83,6 +61,36 @@ Route::middleware('auth')->group(function () {
             });
         return response()->json($items);
     })->name('notifications.recent');
+
+    // ── Technician+ : work orders, stock updates ─────────────────────────
+    Route::middleware('role:technician')->group(function () {
+        Route::get('/maintenance/work-orders/create',  [MaintenanceController::class, 'create'])->name('maintenance.work-orders.create');
+        Route::post('/maintenance/work-order',         [MaintenanceController::class, 'createWorkOrder'])->name('maintenance.create-work-order');
+        Route::put('/maintenance/{taskId}/status',     [MaintenanceController::class, 'updateTaskStatus'])->name('maintenance.update-status');
+        Route::put('/inventory/{itemId}/stock',        [InventoryController::class, 'updateStock'])->name('inventory.update-stock');
+    });
+
+    // ── Auditor+ : reports, analytics, all exports ───────────────────────
+    Route::middleware('role:auditor')->group(function () {
+        Route::get('/analytics',          [AnalyticsController::class, 'index'])->name('analytics');
+        Route::post('/analytics/export',  [AnalyticsController::class, 'export'])->name('analytics.export');
+        Route::get('/inventory/report',   [InventoryController::class, 'generateReport'])->name('inventory.report');
+        Route::post('/inventory/export',  [InventoryController::class, 'exportInventory'])->name('inventory.export');
+        Route::post('/dashboard/export',  [DashboardController::class, 'exportReport'])->name('dashboard.export');
+        Route::post('/maintenance/export',[MaintenanceController::class, 'exportMaintenance'])->name('maintenance.export');
+        Route::match(['get','post'], '/asset-registry/export', [AssetRegistryController::class, 'exportAssets'])->name('asset-registry.export');
+    });
+
+    // ── Manager+ : create/edit assets, create inventory items ────────────
+    Route::middleware('role:manager')->group(function () {
+        Route::post('/asset-registry/store', [AssetRegistryController::class, 'store'])->name('asset-registry.store');
+        Route::post('/inventory/item',       [InventoryController::class, 'createItem'])->name('inventory.create-item');
+    });
+
+    // ── Admin only : system settings ─────────────────────────────────────
+    Route::middleware('role:admin')->group(function () {
+        Route::get('/settings', [SettingsController::class, 'index'])->name('settings');
+    });
 
 });
 
