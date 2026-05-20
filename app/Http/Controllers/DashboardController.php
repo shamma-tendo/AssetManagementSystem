@@ -12,6 +12,7 @@ use App\Models\SensorReading;
 use App\Models\MaintenanceSchedule;
 use App\Models\Inspection;
 use App\Models\User;
+use App\Services\DashboardService;
 
 class DashboardController extends Controller
 {
@@ -23,428 +24,45 @@ class DashboardController extends Controller
         $period = (int) $request->input('period', 30);
         $period = in_array($period, [7, 30, 90]) ? $period : 30;
 
-        $stats = $this->getDashboardStats($period);
+        $dashboardService = new DashboardService();
+        $stats = $dashboardService->getDashboardStats($period);
 
         return view('dashboard', compact('stats', 'period'));
     }
-    
+
     /**
-     * Get dashboard statistics.
+     * Get real-time data for dashboard widgets.
      */
-    private function getDashboardStats(int $period = 30): array
+    public function getRealTimeData(Request $request)
     {
-        return [
-            'totalAssets'             => $this->getTotalAssets(),
-            'criticalAlerts'          => $this->getCriticalAlerts(),
-            'activeWorkOrders'        => $this->getActiveWorkOrders(),
-            'lowStockSkus'            => $this->getLowStockParts(),
-            'assetUtilization'        => $this->getAssetUtilization(),
-            'recentActivity'          => $this->getRecentActivity(),
-            'highPriorityMaintenance' => $this->getHighPriorityMaintenance(),
-            'trends'                  => $this->getKpiTrends($period),
-            'bars'                    => $this->getProgressWidths(),
-        ];
-    }
-    
-    /**
-     * Get total assets count.
-     */
-    private function getTotalAssets()
-    {
-        return Asset::count();
-    }
-    
-    /**
-     * Get critical alerts count — urgent/emergency open work orders + assets under maintenance.
-     */
-    private function getCriticalAlerts()
-    {
-        $terminal = ['completed', 'closed', 'cancelled'];
+        $dashboardService = new DashboardService();
+        $stats = $dashboardService->getDashboardStats((int) $request->input('period', 30));
 
-        return WorkOrder::whereNotIn('status', $terminal)
-            ->whereIn('priority', ['urgent', 'emergency'])
-            ->count();
-    }
-    
-    /**
-     * Get active work orders count.
-     */
-    private function getActiveWorkOrders()
-    {
-        return WorkOrder::whereNotIn('status', ['completed', 'closed', 'cancelled'])->count();
-    }
-    
-    /**
-     * Get low stock parts count.
-     */
-    private function getLowStockParts()
-    {
-        return Part::whereNotNull('reorder_point')
-            ->whereRaw('current_stock <= reorder_point')
-            ->count();
-    }
-    
-    /**
-     * Get asset utilization data — proxied from work order open counts vs total assets.
-     */
-    private function getAssetUtilization()
-    {
-        $total     = max(Asset::count(), 1);
-        $activeBase = Asset::where('status', 'active')->count();
-        $baseUtil   = max(50, (int) round(($activeBase / $total) * 100));
-
-        // Prefetch all WOs touched in the last 14 days
-        $allWOs = WorkOrder::whereNotIn('status', ['cancelled'])
-            ->where('created_at', '>=', now()->subWeeks(2)->startOfDay())
-            ->get(['created_at', 'completed_at']);
-
-        $labels   = [];
-        $current  = [];
-        $previous = [];
-
-        for ($i = 6; $i >= 0; $i--) {
-            $date     = now()->subDays($i);
-            $prevDate = $date->copy()->subWeek();
-
-            $labels[] = strtoupper($date->format('D'));
-
-            $open = $allWOs->filter(fn($wo) =>
-                $wo->created_at->lte($date->copy()->endOfDay()) &&
-                ($wo->completed_at === null || $wo->completed_at->gte($date->copy()->startOfDay()))
-            )->count();
-
-            $current[] = max(55, min(100, $baseUtil - min(15, (int) round($open / $total * 100))));
-
-            $prevOpen = $allWOs->filter(fn($wo) =>
-                $wo->created_at->lte($prevDate->copy()->endOfDay()) &&
-                ($wo->completed_at === null || $wo->completed_at->gte($prevDate->copy()->startOfDay()))
-            )->count();
-
-            $previous[] = max(55, min(100, $baseUtil - min(15, (int) round($prevOpen / $total * 100))));
-        }
-
-        return compact('labels', 'current', 'previous');
-    }
-    
-    /**
-     * Get recent activity from work orders updated in the last 7 days.
-     */
-    private function getRecentActivity(): array
-    {
-        return WorkOrder::with(['asset', 'assignedTo'])
-            ->orderByDesc('updated_at')
-            ->limit(8)
-            ->get()
-            ->map(function ($wo) {
-                $sv = $wo->status instanceof \BackedEnum ? $wo->status->value : (string) $wo->status;
-
-                [$title, $description, $color] = match ($sv) {
-                    'completed', 'closed' => [
-                        'Work order completed',
-                        ($wo->title ?? 'Maintenance') . ' on ' . ($wo->asset?->name ?? 'asset') . ' finished',
-                        'green',
-                    ],
-                    'in_progress' => [
-                        'Work order in progress',
-                        ($wo->assignedTo?->name ?? 'Technician') . ' working on ' . ($wo->asset?->serial_number ?? 'asset'),
-                        'yellow',
-                    ],
-                    'cancelled' => [
-                        'Work order cancelled',
-                        $wo->title ?? 'Work order was cancelled',
-                        'red',
-                    ],
-                    default => [
-                        'Work order ' . str_replace('_', ' ', $sv),
-                        ($wo->title ?? 'Work order') . ' — ' . ($wo->asset?->name ?? 'asset'),
-                        'blue',
-                    ],
-                };
-
-                return [
-                    'type'        => $sv,
-                    'title'       => $title,
-                    'description' => $description,
-                    'time'        => $wo->updated_at->diffForHumans(),
-                    'color'       => $color,
-                ];
-            })
-            ->toArray();
-    }
-    
-    /**
-     * Get high-priority open work orders for the dashboard table.
-     */
-    private function getHighPriorityMaintenance(): array
-    {
-        $terminal = ['completed', 'closed', 'cancelled'];
-
-        return WorkOrder::with(['asset' => fn ($q) => $q->withMax('maintenanceHistories', 'performed_date')])
-            ->whereNotIn('status', $terminal)
-            ->whereIn('priority', ['emergency', 'urgent', 'high'])
-            ->orderByRaw("CASE priority WHEN 'emergency' THEN 1 WHEN 'urgent' THEN 2 ELSE 3 END")
-            ->orderBy('scheduled_date')
-            ->limit(5)
-            ->get()
-            ->map(function ($wo) {
-                $sv = $wo->status instanceof \BackedEnum   ? $wo->status->value   : (string) $wo->status;
-                $pv = $wo->priority instanceof \BackedEnum ? $wo->priority->value : (string) $wo->priority;
-                $tv = $wo->type instanceof \BackedEnum     ? $wo->type->value     : (string) $wo->type;
-
-                $isOverdue = $wo->scheduled_date && $wo->scheduled_date->isPast();
-
-                $statusLabel = $isOverdue
-                    ? 'OVERDUE'
-                    : strtoupper(str_replace('_', ' ', $sv));
-
-                $dotColor = match (true) {
-                    $isOverdue || $pv === 'emergency' => 'red',
-                    $pv === 'urgent'                  => 'orange',
-                    default                           => 'yellow',
-                };
-
-                $badgeClass = match ($statusLabel) {
-                    'OVERDUE'     => 'bg-red-100/80 text-red-700 border-red-200/50',
-                    'IN PROGRESS' => 'bg-blue-100/80 text-blue-700 border-blue-200/50',
-                    'SCHEDULED'   => 'bg-green-100/80 text-green-700 border-green-200/50',
-                    default       => 'bg-yellow-100/80 text-yellow-700 border-yellow-200/50',
-                };
-
-                $health = $wo->asset ? $this->computeAssetHealth($wo->asset) : 50;
-
-                return [
-                    'asset_id'    => $wo->asset?->serial_number ?? 'N/A',
-                    'type'        => ucwords(str_replace('_', ' ', $tv)),
-                    'health'      => $health,
-                    'due_date'    => $wo->scheduled_date?->format('Y-m-d') ?? 'TBD',
-                    'status'      => $statusLabel,
-                    'dot_color'   => $dotColor,
-                    'badge_class' => $badgeClass,
-                ];
-            })
-            ->toArray();
+        return response()->json($stats);
     }
 
     /**
-     * Compute a real asset health score (0–100) using the same weighted formula
-     * as AssetRegistryController: 40% age, 40% maintenance recency, 20% status.
-     */
-    private function computeAssetHealth(Asset $asset): int
-    {
-        $sv = $asset->status instanceof \BackedEnum ? $asset->status->value : (string) $asset->status;
-
-        if ($sv === 'retired')  return 20;
-        if ($sv === 'disposed') return 0;
-        if (in_array($sv, ['ordered', 'received'])) return 100;
-
-        $statusScore = $sv === 'under_maintenance' ? 60 : 100;
-
-        $usefulLife = max(1, $asset->useful_life_years ?? 10);
-        $ageYears   = $asset->purchase_date
-            ? $asset->purchase_date->diffInDays(now()) / 365.25
-            : $usefulLife * 0.5;
-        $ageScore   = (int) round(max(0, (1 - min(1.0, $ageYears / $usefulLife)) * 100));
-
-        $lastMaintDate = $asset->maintenance_histories_max_performed_date;
-        $daysSince = $lastMaintDate
-            ? now()->diffInDays(Carbon::parse($lastMaintDate))
-            : ($asset->purchase_date ? $asset->purchase_date->diffInDays(now()) : 730);
-
-        $maintenanceScore = match (true) {
-            $daysSince <= 30  => 100,
-            $daysSince <= 90  => 85,
-            $daysSince <= 180 => 70,
-            $daysSince <= 365 => 50,
-            $daysSince <= 730 => 30,
-            default           => 10,
-        };
-
-        return (int) max(0, min(100, round(($ageScore * 0.4) + ($maintenanceScore * 0.4) + ($statusScore * 0.2))));
-    }
-
-    /**
-     * Compute period-over-period KPI trend labels and CSS colour classes.
-     * Compares the current $period window against the equally-sized window before it.
-     */
-    private function getKpiTrends(int $period): array
-    {
-        $terminal    = ['completed', 'closed', 'cancelled'];
-        $periodStart = now()->subDays($period);
-        $prevStart   = now()->subDays($period * 2);
-
-        // Total Assets: new assets registered this period vs previous
-        $currAssets = Asset::where('created_at', '>=', $periodStart)->count();
-        $prevAssets = Asset::whereBetween('created_at', [$prevStart, $periodStart])->count();
-
-        // Critical Alerts: new urgent/emergency WOs opened this period vs previous
-        $currCrit = WorkOrder::whereNotIn('status', $terminal)
-            ->whereIn('priority', ['urgent', 'emergency'])
-            ->where('created_at', '>=', $periodStart)->count();
-        $prevCrit = WorkOrder::whereIn('priority', ['urgent', 'emergency'])
-            ->whereBetween('created_at', [$prevStart, $periodStart])->count();
-
-        // Active Work Orders: new WOs created this period vs previous
-        $currWOs = WorkOrder::where('created_at', '>=', $periodStart)->count();
-        $prevWOs = WorkOrder::whereBetween('created_at', [$prevStart, $periodStart])->count();
-
-        // Low Stock SKUs: current count vs count at start of period (last updated before it)
-        $currLow = Part::whereNotNull('reorder_point')
-            ->whereRaw('current_stock <= reorder_point')->count();
-        $prevLow = Part::whereNotNull('reorder_point')
-            ->where('updated_at', '<', $periodStart)
-            ->whereRaw('current_stock <= reorder_point')->count();
-
-        return [
-            'totalAssets' => [
-                'label' => $this->formatTrend($currAssets, $prevAssets, true),
-                'color' => $currAssets >= $prevAssets ? 'text-green-500' : 'text-red-500',
-            ],
-            'criticalAlerts' => [
-                'label' => $this->formatTrend($currCrit, $prevCrit, true),
-                'color' => $currCrit <= $prevCrit ? 'text-green-500' : 'text-red-500',
-            ],
-            'activeWorkOrders' => [
-                'label' => $this->formatTrend($currWOs, $prevWOs),
-                'color' => $currWOs <= $prevWOs ? 'text-green-500' : 'text-yellow-500',
-            ],
-            'lowStockSkus' => [
-                'label' => $this->formatTrend($currLow, $prevLow),
-                'color' => $currLow <= $prevLow ? 'text-green-500' : 'text-red-500',
-            ],
-        ];
-    }
-
-    /**
-     * Format a period-over-period trend as a string.
-     * $absolute = true  → shows raw delta (+3, -1)
-     * $absolute = false → shows percentage change (+12%, -5%)
-     */
-    private function formatTrend(int $current, int $previous, bool $absolute = false): string
-    {
-        if ($absolute) {
-            $delta = $current - $previous;
-            return ($delta >= 0 ? '+' : '') . $delta;
-        }
-        if ($previous === 0) {
-            return $current > 0 ? 'new' : '—';
-        }
-        $pct = (int) round((($current - $previous) / $previous) * 100);
-        return ($pct >= 0 ? '+' : '') . $pct . '%';
-    }
-
-    /**
-     * Compute KPI progress-bar widths as real percentages derived from live data.
-     *   totalAssets      → % of assets that are active
-     *   criticalAlerts   → % of open work orders that are urgent/emergency
-     *   activeWorkOrders → % of all work orders that are currently open
-     *   lowStockSkus     → % of tracked parts that are at or below reorder point
-     */
-    private function getProgressWidths(): array
-    {
-        $totalAssets  = max(1, Asset::count());
-        $activeAssets = Asset::where('status', 'active')->count();
-
-        $totalWOs    = max(1, WorkOrder::whereNotIn('status', ['completed', 'closed', 'cancelled'])->count());
-        $criticalWOs = WorkOrder::whereNotIn('status', ['completed', 'closed', 'cancelled'])
-            ->whereIn('priority', ['urgent', 'emergency'])->count();
-        $allWOs      = max(1, WorkOrder::count());
-        $activeWOs   = WorkOrder::whereNotIn('status', ['completed', 'closed', 'cancelled'])->count();
-
-        $totalParts = max(1, Part::count());
-        $lowStock   = Part::whereNotNull('reorder_point')
-            ->whereRaw('current_stock <= reorder_point')->count();
-
-        return [
-            'totalAssets'      => (int) round($activeAssets / $totalAssets * 100),
-            'criticalAlerts'   => (int) round($criticalWOs  / $totalWOs   * 100),
-            'activeWorkOrders' => (int) round($activeWOs    / $allWOs     * 100),
-            'lowStockSkus'     => (int) round($lowStock     / $totalParts * 100),
-        ];
-    }
-    
-    /**
-     * Get real-time dashboard data via API.
-     */
-    public function getRealTimeData()
-    {
-        return response()->json([
-            'success' => true,
-            'data' => $this->getDashboardStats(),
-            'timestamp' => Carbon::now()->toISOString()
-        ]);
-    }
-    
-    /**
-     * Export dashboard report.
+     * Export dashboard report as CSV.
      */
     public function exportReport(Request $request)
     {
-        $format = $request->input('format', 'json');
-        $dateRange = $request->input('date_range', '30_days');
-        
-        $data = $this->getDashboardStats();
-        
-        switch ($format) {
-            case 'csv':
-                return $this->exportCsv($data);
-            case 'excel':
-                return $this->exportExcel($data);
-            case 'pdf':
-                return $this->exportPdf($data);
-            default:
-                return response()->json($data);
-        }
-    }
-    
-    /**
-     * Export data as CSV.
-     */
-    private function exportCsv($data)
-    {
+        $dashboardService = new DashboardService();
+        $stats = $dashboardService->getDashboardStats((int) $request->input('period', 30));
+
         $headers = [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="dashboard_report.csv"'
+            'Content-Disposition' => 'attachment; filename="dashboard_report_' . now()->format('Y-m-d') . '.csv"'
         ];
-        
-        $callback = function() use ($data) {
+
+        return response()->stream(function () use ($stats) {
             $file = fopen('php://output', 'w');
-            
-            // Header
             fputcsv($file, ['Metric', 'Value']);
-            
-            // Data
-            fputcsv($file, ['Total Assets', $data['totalAssets']]);
-            fputcsv($file, ['Critical Alerts', $data['criticalAlerts']]);
-            fputcsv($file, ['Active Work Orders', $data['activeWorkOrders']]);
-            fputcsv($file, ['Low Stock SKUs', $data['lowStockSkus']]);
-            
+            fputcsv($file, ['Total Assets', $stats['totalAssets']]);
+            fputcsv($file, ['Critical Alerts', $stats['criticalAlerts']]);
+            fputcsv($file, ['Active Work Orders', $stats['activeWorkOrders']]);
+            fputcsv($file, ['Low Stock SKUs', $stats['lowStockSkus']]);
+            fputcsv($file, ['Asset Utilization', $stats['assetUtilization'] . '%']);
             fclose($file);
-        };
-        
-        return response()->stream($callback, 200, $headers);
-    }
-    
-    /**
-     * Export data as Excel.
-     */
-    private function exportExcel($data)
-    {
-        // In a real application, you would use a library like Laravel Excel
-        return response()->json([
-            'message' => 'Excel export not implemented yet',
-            'data' => $data
-        ]);
-    }
-    
-    /**
-     * Export data as PDF.
-     */
-    private function exportPdf($data)
-    {
-        // In a real application, you would use a library like DomPDF
-        return response()->json([
-            'message' => 'PDF export not implemented yet',
-            'data' => $data
-        ]);
+        }, 200, $headers);
     }
 }

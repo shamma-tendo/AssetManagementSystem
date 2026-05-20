@@ -141,12 +141,24 @@
                         <div class="flex items-start justify-between mb-3">
                             <div class="flex items-center space-x-2">
                                 <span class="px-2 py-1 text-xs font-medium rounded-full"
-                                      :class="task.priority === 'LOW' ? 'bg-blue-100/80 text-blue-700 border border-blue-200/50' : 
-                                              task.priority === 'MEDIUM' ? 'bg-gray-100/80 text-gray-700 border border-gray-200/50' : 
-                                              task.priority === 'HIGH' ? 'bg-orange-100/80 text-orange-700 border border-orange-200/50' : 
+                                      :class="task.priority === 'LOW' ? 'bg-blue-100/80 text-blue-700 border border-blue-200/50' :
+                                              task.priority === 'MEDIUM' ? 'bg-gray-100/80 text-gray-700 border border-gray-200/50' :
+                                              task.priority === 'HIGH' ? 'bg-orange-100/80 text-orange-700 border border-orange-200/50' :
                                               'bg-red-100/80 text-red-700 border border-red-200/50 pulse-glow'"
                                       x-text="task.priority"></span>
                                 <span class="text-xs text-gray-500" x-text="task.id"></span>
+                            </div>
+                            <div class="relative" x-data="{ dropdownOpen: false }">
+                                <button @click.stop="dropdownOpen = !dropdownOpen" class="p-1 rounded-lg hover:bg-white/20 transition-colors">
+                                    <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path>
+                                    </svg>
+                                </button>
+                                <div x-show="dropdownOpen" @click.away="dropdownOpen = false" x-transition class="absolute right-0 mt-1 w-40 bg-white/90 backdrop-blur-xl border border-white/30 rounded-xl shadow-xl z-50">
+                                    <a href="#" @click.prevent="editTask(task); dropdownOpen = false" class="block px-4 py-2 text-sm text-gray-700 hover:bg-white/50">Edit</a>
+                                    <hr class="border-white/20 my-1">
+                                    <a href="#" @click.prevent="deleteTask(task); dropdownOpen = false" class="block px-4 py-2 text-sm text-red-600 hover:bg-white/50">Delete</a>
+                                </div>
                             </div>
                         </div>
                         
@@ -200,12 +212,24 @@
                         <div class="flex items-start justify-between mb-3">
                             <div class="flex items-center space-x-2">
                                 <span class="px-2 py-1 text-xs font-medium rounded-full"
-                                      :class="task.priority === 'LOW' ? 'bg-blue-100/80 text-blue-700 border border-blue-200/50' : 
-                                              task.priority === 'MEDIUM' ? 'bg-gray-100/80 text-gray-700 border border-gray-200/50' : 
-                                              task.priority === 'HIGH' ? 'bg-orange-100/80 text-orange-700 border border-orange-200/50' : 
+                                      :class="task.priority === 'LOW' ? 'bg-blue-100/80 text-blue-700 border border-blue-200/50' :
+                                              task.priority === 'MEDIUM' ? 'bg-gray-100/80 text-gray-700 border border-gray-200/50' :
+                                              task.priority === 'HIGH' ? 'bg-orange-100/80 text-orange-700 border border-orange-200/50' :
                                               'bg-red-100/80 text-red-700 border border-red-200/50'"
                                       x-text="task.priority"></span>
                                 <span class="text-xs text-gray-500" x-text="task.id"></span>
+                            </div>
+                            <div class="relative" x-data="{ dropdownOpen: false }">
+                                <button @click.stop="dropdownOpen = !dropdownOpen" class="p-1 rounded-lg hover:bg-white/20 transition-colors">
+                                    <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path>
+                                    </svg>
+                                </button>
+                                <div x-show="dropdownOpen" @click.away="dropdownOpen = false" x-transition class="absolute right-0 mt-1 w-40 bg-white/90 backdrop-blur-xl border border-white/30 rounded-xl shadow-xl z-50">
+                                    <a href="#" @click.prevent="editTask(task); dropdownOpen = false" class="block px-4 py-2 text-sm text-gray-700 hover:bg-white/50">Edit</a>
+                                    <hr class="border-white/20 my-1">
+                                    <a href="#" @click.prevent="deleteTask(task); dropdownOpen = false" class="block px-4 py-2 text-sm text-red-600 hover:bg-white/50">Delete</a>
+                                </div>
                             </div>
                         </div>
                         
@@ -261,8 +285,22 @@
                                 <span class="px-2 py-1 text-xs font-medium rounded-full bg-red-100/80 text-red-700 border border-red-200/50 pulse-glow" x-text="task.priority"></span>
                                 <span class="text-xs text-gray-500" x-text="task.id"></span>
                             </div>
-                            <div class="text-xs text-red-600 font-medium">
-                                <span x-text="task.overdueDays"></span> days overdue
+                            <div class="flex items-center space-x-2">
+                                <div class="text-xs text-red-600 font-medium">
+                                    <span x-text="task.overdueDays"></span> days overdue
+                                </div>
+                                <div class="relative" x-data="{ dropdownOpen: false }">
+                                    <button @click.stop="dropdownOpen = !dropdownOpen" class="p-1 rounded-lg hover:bg-white/20 transition-colors">
+                                        <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path>
+                                        </svg>
+                                    </button>
+                                    <div x-show="dropdownOpen" @click.away="dropdownOpen = false" x-transition class="absolute right-0 mt-1 w-40 bg-white/90 backdrop-blur-xl border border-white/30 rounded-xl shadow-xl z-50">
+                                        <a href="#" @click.prevent="editTask(task); dropdownOpen = false" class="block px-4 py-2 text-sm text-gray-700 hover:bg-white/50">Edit</a>
+                                        <hr class="border-white/20 my-1">
+                                        <a href="#" @click.prevent="deleteTask(task); dropdownOpen = false" class="block px-4 py-2 text-sm text-red-600 hover:bg-white/50">Delete</a>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         
@@ -506,6 +544,44 @@ function maintenanceManagement() {
         
         selectTask(task) {
             this.selectedTask = task;
+        },
+
+        async editTask(task) {
+            const title = prompt('Update work order title:', task.title);
+            if (title === null || title.trim() === '') return;
+            try {
+                const res = await fetch(`/maintenance/${task.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                    body: JSON.stringify({ title: title.trim() })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.tasks = this.refreshTasks();
+                } else {
+                    alert(data.message || 'Failed to update work order');
+                }
+            } catch (e) {
+                alert('Network error updating work order');
+            }
+        },
+
+        async deleteTask(task) {
+            if (!confirm('Are you sure you want to delete this work order? This action cannot be undone.')) return;
+            try {
+                const res = await fetch(`/maintenance/${task.id}`, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.tasks = this.refreshTasks();
+                } else {
+                    alert(data.message || 'Failed to delete work order');
+                }
+            } catch (e) {
+                alert('Network error deleting work order');
+            }
         },
         
         initCharts() {

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Carbon\Carbon;
 
 class Asset extends Model
 {
@@ -181,6 +182,97 @@ class Asset extends Model
     public function getStatusDisplayNameAttribute()
     {
         return $this->status->getDisplayName();
+    }
+
+    /**
+     * Get the asset formatted for display in views/APIs.
+     */
+    public function getFormattedAttribute(): array
+    {
+        $sv = $this->status instanceof \BackedEnum ? $this->status->value : (string) $this->status;
+        $statusMap = [
+            'ordered' => 'ORDERED',
+            'received' => 'RECEIVED',
+            'active' => 'ACTIVE',
+            'under_maintenance' => 'IN REPAIR',
+            'retired' => 'RETIRED',
+            'disposed' => 'DISPOSED',
+        ];
+
+        $lastMaintDate = $this->maintenanceHistories()->max('performed_date');
+
+        return [
+            'id' => $this->serial_number,
+            'name' => $this->name,
+            'category' => $this->category?->name ?? 'Uncategorized',
+            'location' => $this->location?->name ?? 'N/A',
+            'health' => $this->calculateHealth($lastMaintDate),
+            'status' => $statusMap[$sv] ?? strtoupper($sv),
+            'lastMaintenance' => $lastMaintDate ?? $this->purchase_date?->format('Y-m-d') ?? 'N/A',
+            'manufacturer' => $this->manufacturer ?? 'N/A',
+            'installedDate' => $this->purchase_date?->format('Y-m-d') ?? 'N/A',
+            'warrantyEnd' => $this->warranty_expiry?->format('Y-m-d') ?? 'N/A',
+        ];
+    }
+
+    /**
+     * Calculate a real health score (0-100) from three weighted factors:
+     *   40% — age vs. useful life (depreciation-based)
+     *   40% — maintenance recency (days since last completed maintenance)
+     *   20% — current operational status
+     */
+    public function calculateHealth(?string $lastMaintDate = null): int
+    {
+        $sv = $this->status->value;
+
+        // --- Status factor (20%) ---
+        $statusScore = match($sv) {
+            'ordered', 'received'  => 100,
+            'active'               => 100,
+            'under_maintenance'    => 60,
+            'retired'              => 20,
+            'disposed'             => 0,
+            default                => 80,
+        };
+
+        // Short-circuit: retired / disposed assets don't need a detailed score
+        if (in_array($sv, ['retired', 'disposed'])) {
+            return $statusScore;
+        }
+
+        // New assets (ordered/received) are considered fully healthy
+        if (in_array($sv, ['ordered', 'received'])) {
+            return 100;
+        }
+
+        // --- Age factor (40%) ---
+        $usefulLife = max(1, $this->useful_life_years ?? 10);
+        $ageYears   = $this->purchase_date
+            ? $this->purchase_date->diffInDays(now()) / 365.25
+            : $usefulLife * 0.5; // assume mid-life if unknown
+        $ageScore = (int) round(max(0, (1 - min(1.0, $ageYears / $usefulLife)) * 100));
+
+        // --- Maintenance recency factor (40%) ---
+        if ($lastMaintDate) {
+            $daysSince = now()->diffInDays(Carbon::parse($lastMaintDate));
+        } else {
+            // No recorded maintenance — penalise based on asset age
+            $daysSince = $this->purchase_date
+                ? $this->purchase_date->diffInDays(now())
+                : 730;
+        }
+
+        $maintenanceScore = match(true) {
+            $daysSince <= 30  => 100,
+            $daysSince <= 90  => 85,
+            $daysSince <= 180 => 70,
+            $daysSince <= 365 => 50,
+            $daysSince <= 730 => 30,
+            default           => 10,
+        };
+
+        // Weighted average: 40% age + 40% maintenance + 20% status
+        return (int) round(($ageScore * 0.4) + ($maintenanceScore * 0.4) + ($statusScore * 0.2));
     }
 
     /**

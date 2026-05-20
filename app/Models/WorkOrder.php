@@ -228,7 +228,54 @@ class WorkOrder extends Model
      */
     public function getPriorityDisplayNameAttribute()
     {
-        return $this->priority->getDisplayName();
+        $priority = $this->priority instanceof \BackedEnum ? $this->priority->value : (string) $this->priority;
+        return match($priority) {
+            'low' => 'LOW',
+            'normal' => 'MEDIUM',
+            'high' => 'HIGH',
+            'urgent' => 'URGENT',
+            'emergency' => 'EMERGENCY',
+            default => strtoupper($priority),
+        };
+    }
+
+    /**
+     * Get the work order formatted for display in views/APIs.
+     */
+    public function getFormattedAttribute(): array
+    {
+        $type = $this->type instanceof \BackedEnum ? $this->type->value : (string) $this->type;
+        return [
+            'id' => $this->id,
+            'title' => $this->title,
+            'priority' => $this->priority_display_name,
+            'type' => ucfirst(str_replace('_', ' ', $type)),
+            'asset' => $this->asset?->name ?? 'Unassigned',
+            'technician' => $this->assignedTo?->name ?? 'Unassigned',
+            'dueDate' => $this->scheduled_date?->format('Y-m-d') ?? 'Not scheduled',
+            'estimatedHours' => (string) $this->estimated_hours ?? 'N/A',
+            'status' => $this->status instanceof \BackedEnum ? strtoupper($this->status->value) : strtoupper($this->status),
+            'progress' => $this->calculateProgress(),
+        ];
+    }
+
+    /**
+     * Calculate work order progress based on status.
+     */
+    public function calculateProgress(): int
+    {
+        $sv = $this->status instanceof \BackedEnum ? $this->status->value : (string) $this->status;
+
+        return match($sv) {
+            'requested', 'approved' => 0,
+            'assigned', 'scheduled' => 10,
+            'in_progress' => 50,
+            'on_hold' => 50,
+            'completed' => 90,
+            'closed' => 100,
+            'cancelled' => 0,
+            default => 0,
+        };
     }
 
     /**

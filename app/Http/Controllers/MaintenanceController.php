@@ -118,7 +118,7 @@ class MaintenanceController extends Controller
             ->orderBy('scheduled_date')
             ->limit(20)
             ->get()
-            ->map(fn($wo) => $this->formatWorkOrder($wo))
+            ->map(fn($wo) => $wo->formatted)
             ->values()
             ->toArray();
 
@@ -131,7 +131,7 @@ class MaintenanceController extends Controller
             ->orderBy('scheduled_date')
             ->limit(20)
             ->get()
-            ->map(fn($wo) => $this->formatWorkOrder($wo))
+            ->map(fn($wo) => $wo->formatted)
             ->values()
             ->toArray();
 
@@ -140,66 +140,13 @@ class MaintenanceController extends Controller
             ->orderByDesc('started_at')
             ->limit(20)
             ->get()
-            ->map(fn($wo) => $this->formatWorkOrder($wo))
+            ->map(fn($wo) => $wo->formatted)
             ->values()
             ->toArray();
 
         return compact('pending', 'inProgress', 'overdue');
     }
 
-    /**
-     * Normalise a WorkOrder model into the array shape the view expects.
-     */
-    private function formatWorkOrder(WorkOrder $wo): array
-    {
-        $sv = $wo->status instanceof \BackedEnum ? $wo->status->value : (string) $wo->status;
-        $pv = $wo->priority instanceof \BackedEnum ? $wo->priority->value : (string) $wo->priority;
-
-        if (in_array($sv, ['completed', 'closed'])) {
-            $progress = 100;
-        } elseif (in_array($sv, ['in_progress', 'on_hold'])
-            && ($wo->estimated_hours ?? 0) > 0
-            && ($wo->actual_hours    ?? 0) > 0) {
-            $cap      = $sv === 'in_progress' ? 99 : 90;
-            $progress = (int) min($cap, round(($wo->actual_hours / $wo->estimated_hours) * 100));
-        } else {
-            $progress = match($sv) {
-                'in_progress' => 50,
-                'on_hold'     => 30,
-                default       => 0,
-            };
-        }
-
-        $overdueDays = ($wo->scheduled_date && $wo->scheduled_date->isPast())
-            ? (int) now()->diffInDays($wo->scheduled_date)
-            : 0;
-
-        $priorityDisplay = match($pv) {
-            'low'                    => 'LOW',
-            'normal'                 => 'MEDIUM',
-            'high'                   => 'HIGH',
-            'urgent', 'emergency'    => 'CRITICAL',
-            default                  => strtoupper($pv),
-        };
-
-        return [
-            'id'             => 'WO-' . strtoupper(substr($wo->id, 0, 8)),
-            'uuid'           => $wo->id,
-            'title'          => $wo->title,
-            'description'    => $wo->description ?? '',
-            'priority'       => $priorityDisplay,
-            'type'           => $wo->type instanceof \BackedEnum ? $wo->type->value : (string) $wo->type,
-            'asset'          => $wo->asset?->serial_number ?? 'Unassigned',
-            'assetName'      => $wo->asset?->name ?? 'Unknown Asset',
-            'technician'     => $wo->assignedTo?->name ?? 'Unassigned',
-            'dueDate'        => $wo->scheduled_date?->format('Y-m-d') ?? 'TBD',
-            'estimatedHours' => (float) ($wo->estimated_hours ?? 0),
-            'progress'       => $progress,
-            'status'         => $sv,
-            'overdueDays'    => $overdueDays,
-        ];
-    }
-    
     /**
      * Build analytics data for the last 6 months from real work order records.
      */
@@ -266,7 +213,7 @@ class MaintenanceController extends Controller
             return response()->json(['success' => false, 'message' => 'Work order not found'], 404);
         }
 
-        return response()->json(['success' => true, 'data' => $this->formatWorkOrder($wo)]);
+        return response()->json(['success' => true, 'data' => $wo->formatted]);
     }
     
     /**
@@ -345,7 +292,7 @@ class MaintenanceController extends Controller
             ->whereNotIn('status', ['completed', 'closed', 'cancelled'])
             ->orderBy('scheduled_date')
             ->get()
-            ->map(fn($wo) => $this->formatWorkOrder($wo))
+            ->map(fn($wo) => $wo->formatted)
             ->toArray();
 
         return match ($request->input('format', 'csv')) {
@@ -373,5 +320,80 @@ class MaintenanceController extends Controller
             }
             fclose($file);
         }, 200, $headers);
+    }
+
+    /**
+     * Update a work order.
+     */
+    public function update(Request $request, $taskId)
+    {
+        $wo = WorkOrder::findOrFail($taskId);
+
+        $validated = $request->validate([
+            'title'           => 'sometimes|required|string|max:255',
+            'description'     => 'sometimes|required|string',
+            'type'            => 'sometimes|required|in:preventive_maintenance,corrective_maintenance,emergency_maintenance,inspection,calibration,installation,removal,upgrade,repair,other',
+            'priority'        => 'sometimes|required|in:low,normal,high,urgent,emergency',
+            'asset_id'        => 'sometimes|required|exists:assets,id',
+            'assigned_to'     => 'nullable|exists:users,id',
+            'scheduled_date'  => 'nullable|date',
+            'estimated_hours' => 'nullable|numeric|min:0',
+            'status'          => 'sometimes|required|in:requested,approved,assigned,scheduled,in_progress,on_hold,completed,closed,cancelled',
+        ]);
+
+        // Handle status transition validation if status is being updated
+        if (isset($validated['status'])) {
+            $oldStatus = $wo->status;
+            $newStatus = WorkOrderStatus::from($validated['status']);
+            if (!$oldStatus->canTransitionTo($newStatus)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Cannot transition from {$oldStatus->getDisplayName()} to {$newStatus->getDisplayName()}",
+                ], 422);
+            }
+            $updates = ['status' => $validated['status']];
+            if ($newStatus === WorkOrderStatus::IN_PROGRESS && !$wo->started_at) {
+                $updates['started_at'] = now();
+            }
+            if ($newStatus === WorkOrderStatus::COMPLETED && !$wo->completed_at) {
+                $updates['completed_at'] = now();
+            }
+            if ($newStatus === WorkOrderStatus::CLOSED && !$wo->closed_at) {
+                $updates['closed_at'] = now();
+            }
+        } else {
+            $updates = [];
+        }
+
+        $wo->update(array_merge($validated, $updates, ['updated_by' => Auth::id()]));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Work order updated successfully',
+            'data' => $this->formatWorkOrder($wo->fresh()),
+        ]);
+    }
+
+    /**
+     * Delete a work order.
+     */
+    public function destroy($taskId)
+    {
+        $wo = WorkOrder::findOrFail($taskId);
+
+        // Prevent deletion of in-progress work orders
+        if (in_array($wo->status->value, ['in_progress', 'scheduled', 'assigned'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot delete an in-progress or scheduled work order',
+            ], 422);
+        }
+
+        $wo->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Work order deleted successfully',
+        ]);
     }
 }

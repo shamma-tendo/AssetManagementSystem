@@ -276,11 +276,11 @@
                                                 </svg>
                                             </button>
                                             <div x-show="dropdownOpen" @click.away="dropdownOpen = false" x-transition class="absolute right-0 mt-1 w-48 bg-white/90 backdrop-blur-xl border border-white/30 rounded-xl shadow-xl z-50">
-                                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-white/50">View Details</a>
-                                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-white/50">Edit Asset</a>
+                                                <a href="#" @click.prevent="openDetailsModal(asset); dropdownOpen = false" class="block px-4 py-2 text-sm text-gray-700 hover:bg-white/50">View Details</a>
+                                                <a href="#" @click.prevent="editAsset(asset); dropdownOpen = false" class="block px-4 py-2 text-sm text-gray-700 hover:bg-white/50">Edit Asset</a>
                                                 <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-white/50">Schedule Maintenance</a>
                                                 <hr class="border-white/20 my-1">
-                                                <a href="#" class="block px-4 py-2 text-sm text-red-600 hover:bg-white/50">Delete Asset</a>
+                                                <a href="#" @click.prevent="deleteAsset(asset); dropdownOpen = false" class="block px-4 py-2 text-sm text-red-600 hover:bg-white/50">Delete Asset</a>
                                             </div>
                                         </div>
                                     </td>
@@ -635,6 +635,62 @@ function assetRegistry() {
         
         selectAsset(asset) {
             this.selectedAsset = asset;
+        },
+
+        async editAsset(asset) {
+            const name = prompt('Update asset name:', asset.name);
+            if (name === null || name.trim() === '') return;
+            try {
+                const res = await fetch(`/asset-registry/${asset.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                    body: JSON.stringify({ name: name.trim() })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const idx = this.assets.findIndex(a => a.id === asset.id);
+                    if (idx !== -1) this.assets[idx] = data.data;
+                } else {
+                    alert(data.message || 'Failed to update asset');
+                }
+            } catch (e) {
+                alert('Network error updating asset');
+            }
+        },
+
+        async deleteAsset(asset) {
+            if (!confirm('Are you sure you want to delete this asset? This action cannot be undone.')) return;
+            try {
+                const res = await fetch(`/asset-registry/${asset.id}`, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.assets = this.assets.filter(a => a.id !== asset.id);
+                    this.stats.totalAssets = this.assets.length;
+                } else {
+                    alert(data.message || 'Failed to delete asset');
+                }
+            } catch (e) {
+                alert('Network error deleting asset');
+            }
+        },
+
+        async openDetailsModal(asset) {
+            try {
+                const res = await fetch(`/asset-registry/${asset.id}/details`, {
+                    headers: { 'Accept': 'application/json' }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert(JSON.stringify(data.data, null, 2));
+                } else {
+                    alert('Could not load details');
+                }
+            } catch (e) {
+                alert('Network error loading details');
+            }
         },
         
         initMaintenanceChart() {

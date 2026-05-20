@@ -16,6 +16,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \App\Http\Middleware\RoleMiddleware::class,
             'permission' => \App\Http\Middleware\PermissionMiddleware::class,
         ]);
+
+        $middleware->redirectGuestsTo(function ($request) {
+            return route('login');
+        });
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

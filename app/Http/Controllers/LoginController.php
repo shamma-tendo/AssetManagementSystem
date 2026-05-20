@@ -55,8 +55,10 @@ class LoginController extends Controller
             'first_name' => 'required|string|max:100',
             'last_name'  => 'required|string|max:100',
             'email'      => 'required|email|unique:users,email',
-            'password'   => 'required|string|min:8|confirmed',
+            'password'   => ['required', 'string', 'min:8', 'confirmed', 'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/'],
             'role'       => 'required|in:viewer,technician,auditor,manager',
+        ], [
+            'password.regex' => 'Password must contain at least 1 uppercase, 1 lowercase, 1 number, and 1 special character',
         ]);
 
         $base     = strtolower(substr($request->first_name, 0, 1) . $request->last_name);

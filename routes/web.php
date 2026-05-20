@@ -18,10 +18,10 @@ use App\Http\Controllers\SettingsController;
 // ── Public routes ──────────────────────────────────────────────────────
 Route::get('/',       [LoginController::class, 'showLanding'])->name('landing');
 Route::get('/login',  [LoginController::class, 'showLogin'])->name('login');
-Route::post('/login', [LoginController::class, 'login'])->name('login.post');
+Route::post('/login', [LoginController::class, 'login'])->middleware('throttle:5,1')->name('login.post');
 Route::post('/logout',[LoginController::class, 'logout'])->name('logout');
 Route::get('/register',  [LoginController::class, 'showRegister'])->name('register');
-Route::post('/register', [LoginController::class, 'register'])->name('register.post');
+Route::post('/register', [LoginController::class, 'register'])->middleware('throttle:5,1')->name('register.post');
 
 // ── Protected routes (require authentication) ───────────────────────────
 Route::middleware('auth')->group(function () {
@@ -51,7 +51,7 @@ Route::middleware('auth')->group(function () {
             ->limit(8)->get()
             ->map(fn($a) => ['id' => $a->serial_number, 'uuid' => $a->id, 'name' => $a->name, 'category' => $a->category?->name ?? 'Uncategorized']);
         return response()->json($results);
-    })->name('search');
+    })->middleware('throttle:60,1')->name('search');
 
     Route::get('/notifications/recent', function () {
         $items = \App\Models\WorkOrder::with('asset')->latest()->limit(6)->get()
@@ -60,7 +60,7 @@ Route::middleware('auth')->group(function () {
                 return ['id' => $wo->id, 'message' => $wo->title, 'type' => $sv, 'asset' => $wo->asset?->name ?? 'Unknown', 'time' => $wo->created_at->diffForHumans()];
             });
         return response()->json($items);
-    })->name('notifications.recent');
+    })->middleware('throttle:60,1')->name('notifications.recent');
 
     // ── Technician+ : work orders, stock updates ─────────────────────────
     Route::middleware('role:technician')->group(function () {
@@ -81,10 +81,16 @@ Route::middleware('auth')->group(function () {
         Route::match(['get','post'], '/asset-registry/export', [AssetRegistryController::class, 'exportAssets'])->name('asset-registry.export');
     });
 
-    // ── Manager+ : create/edit assets, create inventory items ────────────
+    // ── Manager+ : create/edit assets, create/update/delete inventory items, update work orders ────────────
     Route::middleware('role:manager')->group(function () {
-        Route::post('/asset-registry/store', [AssetRegistryController::class, 'store'])->name('asset-registry.store');
-        Route::post('/inventory/item',       [InventoryController::class, 'createItem'])->name('inventory.create-item');
+        Route::post('/asset-registry/store',         [AssetRegistryController::class, 'store'])->name('asset-registry.store');
+        Route::put('/asset-registry/{assetId}',      [AssetRegistryController::class, 'update'])->name('asset-registry.update');
+        Route::delete('/asset-registry/{assetId}',   [AssetRegistryController::class, 'destroy'])->name('asset-registry.delete');
+        Route::post('/inventory/item',               [InventoryController::class, 'createItem'])->name('inventory.create-item');
+        Route::put('/inventory/{itemId}',            [InventoryController::class, 'updatePart'])->name('inventory.update');
+        Route::delete('/inventory/{itemId}',         [InventoryController::class, 'destroyPart'])->name('inventory.delete');
+        Route::put('/maintenance/{taskId}',          [MaintenanceController::class, 'update'])->name('maintenance.update');
+        Route::delete('/maintenance/{taskId}',       [MaintenanceController::class, 'destroy'])->name('maintenance.delete');
     });
 
     // ── Admin only : system settings ─────────────────────────────────────

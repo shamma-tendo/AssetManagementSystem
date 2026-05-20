@@ -216,11 +216,11 @@
                                     </button>
                                     <div x-show="dropdownOpen" @click.away="dropdownOpen = false" x-transition class="absolute right-0 mt-1 w-48 glass-card z-50">
                                         <a href="#" @click.prevent="openDetailsModal(item); dropdownOpen = false" class="block px-4 py-2 text-sm text-gray-700 hover:bg-white/50">View Details</a>
-                                        <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-white/50">Edit Item</a>
+                                        <a href="#" @click.prevent="openEditModal(item); dropdownOpen = false" class="block px-4 py-2 text-sm text-gray-700 hover:bg-white/50">Edit Item</a>
                                         <a href="#" @click.prevent="openStockModal(item); dropdownOpen = false" class="block px-4 py-2 text-sm text-gray-700 hover:bg-white/50">Update Stock</a>
                                         <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-white/50">Order More</a>
                                         <hr class="border-white/20 my-1">
-                                        <a href="#" class="block px-4 py-2 text-sm text-red-600 hover:bg-white/50">Delete Item</a>
+                                        <a href="#" @click.prevent="deleteItem(item); dropdownOpen = false" class="block px-4 py-2 text-sm text-red-600 hover:bg-white/50">Delete Item</a>
                                     </div>
                                 </div>
                             </td>
@@ -366,8 +366,8 @@
         <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" @click.stop>
             <div class="flex items-center justify-between p-6 border-b border-gray-100">
                 <div>
-                    <h3 class="text-lg font-bold text-gray-900">Add New Inventory Item</h3>
-                    <p class="text-sm text-gray-500 mt-0.5">Create a new spare part or supply record</p>
+                    <h3 class="text-lg font-bold text-gray-900" x-text="isEditingItem ? 'Edit Inventory Item' : 'Add New Inventory Item'"></h3>
+                    <p class="text-sm text-gray-500 mt-0.5" x-text="isEditingItem ? 'Update the inventory item details' : 'Create a new spare part or supply record'"></p>
                 </div>
                 <button @click="showNewItemModal = false" class="p-2 rounded-xl hover:bg-gray-100 transition-colors">
                     <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -449,7 +449,7 @@
                     <svg x-show="newItemLoading" class="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                     </svg>
-                    <span x-text="newItemLoading ? 'Saving...' : 'Create Item'"></span>
+                    <span x-text="newItemLoading ? (isEditingItem ? 'Saving...' : 'Saving...') : (isEditingItem ? 'Update Item' : 'Create Item')"></span>
                 </button>
             </div>
         </div>
@@ -577,6 +577,8 @@ function inventoryManagement() {
         stockSuccess: '',
 
         showNewItemModal: false,
+        isEditingItem: false,
+        editItemUuid: null,
         newItemForm: { name: '', part_number: '', category_id: '', supplier_id: '', unit_of_measure: '', current_stock: '', minimum_stock: '', reorder_point: '', unit_cost: '', storage_location: '', description: '' },
         newItemLoading: false,
         newItemError: '',
@@ -890,6 +892,44 @@ function inventoryManagement() {
             }
         },
 
+        openEditModal(item) {
+            this.isEditingItem = true;
+            this.editItemUuid = item.uuid;
+            this.newItemForm = {
+                name: item.name || '',
+                part_number: item.sku || '',
+                category_id: '',
+                supplier_id: '',
+                unit_of_measure: '',
+                current_stock: '',
+                minimum_stock: item.minStock || '',
+                reorder_point: item.reorderLevel || '',
+                unit_cost: item.unitPrice || '',
+                storage_location: item.location || '',
+                description: ''
+            };
+            this.showNewItemModal = true;
+        },
+
+        async deleteItem(item) {
+            if (!confirm('Are you sure you want to delete this item? This action cannot be undone.')) return;
+            try {
+                const res = await fetch(`/inventory/${item.uuid}`, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.items = this.items.filter(i => i.uuid !== item.uuid);
+                    this.stats.totalItems = this.items.length;
+                } else {
+                    alert(data.message || 'Failed to delete item.');
+                }
+            } catch (e) {
+                alert('Network error deleting item.');
+            }
+        },
+
         async submitNewItem() {
             if (!this.newItemForm.name.trim()) {
                 this.newItemError = 'Item name is required.';
@@ -901,23 +941,32 @@ function inventoryManagement() {
             try {
                 const payload = {};
                 Object.entries(this.newItemForm).forEach(([k, v]) => { if (v !== '' && v !== null) payload[k] = v; });
-                const res = await fetch('{{ route('inventory.create-item') }}', {
-                    method: 'POST',
+                const url = this.isEditingItem ? `/inventory/${this.editItemUuid}` : '{{ route('inventory.create-item') }}';
+                const method = this.isEditingItem ? 'PUT' : 'POST';
+                const res = await fetch(url, {
+                    method: method,
                     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
                     body: JSON.stringify(payload),
                 });
                 const data = await res.json();
                 if (data.success) {
-                    this.items.unshift(data.item);
+                    if (this.isEditingItem) {
+                        const idx = this.items.findIndex(i => i.uuid === this.editItemUuid);
+                        if (idx !== -1) this.items[idx] = data.item;
+                    } else {
+                        this.items.unshift(data.item);
+                    }
                     this.stats.totalItems = this.items.length;
                     this.stats.outOfStock = this.items.filter(i => i.status === 'OUT_OF_STOCK').length;
                     this.stats.lowStock   = this.items.filter(i => i.status === 'LOW_STOCK').length;
                     this.stats.totalValue = parseFloat(this.items.reduce((s, i) => s + (i.totalValue || 0), 0).toFixed(2));
-                    this.newItemSuccess = 'Item created successfully!';
+                    this.newItemSuccess = (this.isEditingItem ? 'Item updated successfully!' : 'Item created successfully!');
                     this.newItemForm = { name: '', part_number: '', category_id: '', supplier_id: '', unit_of_measure: '', current_stock: '', minimum_stock: '', reorder_point: '', unit_cost: '', storage_location: '', description: '' };
+                    this.isEditingItem = false;
+                    this.editItemUuid = null;
                     setTimeout(() => { this.showNewItemModal = false; this.newItemSuccess = ''; }, 1500);
                 } else {
-                    this.newItemError = data.message || 'Failed to create item.';
+                    this.newItemError = data.message || (this.isEditingItem ? 'Failed to update item.' : 'Failed to create item.');
                     if (data.errors) {
                         this.newItemError = Object.values(data.errors).flat().join(' ');
                     }
