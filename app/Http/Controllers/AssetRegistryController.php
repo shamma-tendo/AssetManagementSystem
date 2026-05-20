@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Asset;
 use App\Models\Category;
 use App\Models\Location;
+use App\Models\WorkOrder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -33,11 +34,22 @@ class AssetRegistryController extends Controller
 
         $assets = $dbAssets->map(fn($a) => $this->formatAsset($a))->values()->toArray();
 
+        $total       = max(1, Asset::count());
+        $operational = Asset::where('status', 'active')->count();
+        $inRepair    = Asset::where('status', 'under_maintenance')->count();
+        $uptimeAvg   = round($operational / $total * 100, 1);
+
         $stats = [
-            'totalAssets' => Asset::count(),
-            'operational' => Asset::where('status', 'active')->count(),
-            'inRepair'    => Asset::where('status', 'under_maintenance')->count(),
-            'uptimeAvg'   => 99.2,
+            'totalAssets' => $total,
+            'operational' => $operational,
+            'inRepair'    => $inRepair,
+            'uptimeAvg'   => $uptimeAvg,
+            'bars'        => [
+                'totalAssets' => (int) round($operational / $total * 100),
+                'operational' => (int) round($operational / $total * 100),
+                'inRepair'    => (int) round($inRepair    / $total * 100),
+                'uptimeAvg'   => (int) $uptimeAvg,
+            ],
         ];
 
         $categories         = Category::orderBy('name')->get(['id', 'name']);
@@ -78,7 +90,6 @@ class AssetRegistryController extends Controller
             'manufacturer'     => $asset->manufacturer ?? 'N/A',
             'installedDate'    => $asset->purchase_date?->format('Y-m-d') ?? 'N/A',
             'warrantyEnd'      => $asset->warranty_expiry?->format('Y-m-d') ?? 'N/A',
-            'powerRequirement' => 'N/A',
         ];
     }
 
@@ -144,16 +155,43 @@ class AssetRegistryController extends Controller
     
     
     /**
-     * Get maintenance history data for charts.
+     * Get real maintenance history data grouped by month for the last 6 months.
+     * Counts completed work orders per type (preventive / corrective / predictive).
      */
-    private function getMaintenanceHistory()
+    private function getMaintenanceHistory(): array
     {
-        return [
-            'labels' => ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-            'preventive' => [45, 52, 48, 58, 62, 55],
-            'corrective' => [12, 15, 18, 14, 20, 16],
-            'predictive' => [8, 10, 12, 15, 18, 22]
-        ];
+        $labels = [];
+        $months = [];
+        for ($i = 5; $i >= 0; $i--) {
+            $date     = now()->subMonths($i);
+            $labels[] = $date->format('M');
+            $months[] = [$date->year, $date->month];
+        }
+
+        $types = ['preventive', 'corrective', 'predictive'];
+
+        $rows = DB::table('work_orders')
+            ->where('status', 'completed')
+            ->whereIn('type', $types)
+            ->where('completed_at', '>=', now()->subMonths(6)->startOfMonth())
+            ->selectRaw("strftime('%Y', completed_at) as yr, strftime('%m', completed_at) as mo, type, COUNT(*) as cnt")
+            ->groupBy('yr', 'mo', 'type')
+            ->get();
+
+        $lookup = [];
+        foreach ($rows as $row) {
+            $lookup[$row->yr . '-' . $row->mo][$row->type] = $row->cnt;
+        }
+
+        $result = ['labels' => $labels];
+        foreach ($types as $type) {
+            $result[$type] = array_map(
+                fn($m) => (int) ($lookup[$m[0] . '-' . str_pad($m[1], 2, '0', STR_PAD_LEFT)][$type] ?? 0),
+                $months
+            );
+        }
+
+        return $result;
     }
     
     /**

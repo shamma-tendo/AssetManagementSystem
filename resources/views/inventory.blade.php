@@ -48,11 +48,9 @@
                     <label class="block text-sm font-medium text-gray-700 mb-2">Category</label>
                     <select class="w-full px-3 py-2 glass-input rounded-lg text-sm text-gray-900 placeholder-gray-500">
                         <option>All Categories</option>
-                        <option>Mechanical Parts</option>
-                        <option>Fluids & Lubricants</option>
-                        <option>Electronics</option>
-                        <option>Motors & Drives</option>
-                        <option>Valves & Fittings</option>
+                        @foreach($categories as $cat)
+                            <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                        @endforeach
                     </select>
                 </div>
                 <div>
@@ -68,20 +66,18 @@
                     <label class="block text-sm font-medium text-gray-700 mb-2">Location</label>
                     <select class="w-full px-3 py-2 glass-input rounded-lg text-sm text-gray-900 placeholder-gray-500">
                         <option>All Locations</option>
-                        <option>Warehouse A</option>
-                        <option>Warehouse B</option>
-                        <option>Storage Tank B</option>
-                        <option>Electronics Cabinet C</option>
+                        @foreach($locations as $loc)
+                            <option value="{{ $loc }}">{{ $loc }}</option>
+                        @endforeach
                     </select>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Supplier</label>
                     <select class="w-full px-3 py-2 glass-input rounded-lg text-sm text-gray-900 placeholder-gray-500">
                         <option>All Suppliers</option>
-                        <option>TechParts Inc.</option>
-                        <option>FluidTech Solutions</option>
-                        <option>SensorTech Pro</option>
-                        <option>BeltMaster Corp</option>
+                        @foreach($suppliers as $sup)
+                            <option value="{{ $sup->id }}">{{ $sup->name }}</option>
+                        @endforeach
                     </select>
                 </div>
             </div>
@@ -98,7 +94,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
                     </svg>
                 </div>
-                <span class="text-xs text-blue-500 font-medium">+12</span>
+                <span class="text-xs {{ $stats['trends']['totalItems']['color'] }} font-medium">{{ $stats['trends']['totalItems']['label'] }}</span>
             </div>
             <div class="space-y-1">
                 <p class="text-sm text-gray-600 font-medium">Total Items</p>
@@ -114,7 +110,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z"></path>
                     </svg>
                 </div>
-                <span class="text-xs text-yellow-500 font-medium">-3</span>
+                <span class="text-xs {{ $stats['trends']['lowStock']['color'] }} font-medium">{{ $stats['trends']['lowStock']['label'] }}</span>
             </div>
             <div class="space-y-1">
                 <p class="text-sm text-gray-600 font-medium">Low Stock</p>
@@ -130,7 +126,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z"></path>
                     </svg>
                 </div>
-                <span class="text-xs text-red-500 font-medium">+1</span>
+                <span class="text-xs {{ $stats['trends']['outOfStock']['color'] }} font-medium">{{ $stats['trends']['outOfStock']['label'] }}</span>
             </div>
             <div class="space-y-1">
                 <p class="text-sm text-gray-600 font-medium">Out of Stock</p>
@@ -150,11 +146,11 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                         </svg>
                     </div>
-                    <span class="text-xs text-green-400 font-medium">+5.2%</span>
+                    <span class="text-xs {{ $stats['trends']['totalValue']['color'] }} font-medium">{{ $stats['trends']['totalValue']['label'] }}</span>
                 </div>
                 <div class="space-y-1">
                     <p class="text-sm text-gray-300 font-medium">Total Value</p>
-                    <p class="text-3xl font-bold text-white" x-text="'$' + formatNumber(stats.totalValue)">$284,750</p>
+                    <p class="text-3xl font-bold text-white" x-text="'UGX ' + formatNumber(stats.totalValue)">UGX 284,750</p>
                 </div>
             </div>
         </div>
@@ -187,7 +183,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <template x-for="item in filteredItems" :key="item.id">
+                    <template x-for="item in paginatedItems" :key="item.id">
                         <tr class="border-b border-white/5 hover:bg-white/5 transition-all duration-200 cursor-pointer" @click="selectItem(item)">
                             <td class="py-3 px-4">
                                 <span class="text-sm font-medium text-gray-900" x-text="item.id"></span>
@@ -208,8 +204,8 @@
                                                   'bg-red-100/80 text-red-700 border border-red-200/50'"
                                       x-text="item.status.replace('_', ' ')"></span>
                             </td>
-                            <td class="py-3 px-4 text-sm text-gray-700" x-text="'$' + item.unitPrice.toFixed(2)"></td>
-                            <td class="py-3 px-4 text-sm text-gray-700" x-text="'$' + item.totalValue.toFixed(2)"></td>
+                            <td class="py-3 px-4 text-sm text-gray-700" x-text="'UGX ' + item.unitPrice.toFixed(2)"></td>
+                            <td class="py-3 px-4 text-sm text-gray-700" x-text="'UGX ' + item.totalValue.toFixed(2)"></td>
                             <td class="py-3 px-4 text-sm text-gray-700" x-text="item.location"></td>
                             <td class="py-3 px-4">
                                 <div class="relative" x-data="{ dropdownOpen: false }">
@@ -221,7 +217,7 @@
                                     <div x-show="dropdownOpen" @click.away="dropdownOpen = false" x-transition class="absolute right-0 mt-1 w-48 glass-card z-50">
                                         <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-white/50">View Details</a>
                                         <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-white/50">Edit Item</a>
-                                        <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-white/50">Update Stock</a>
+                                        <a href="#" @click.prevent="openStockModal(item); dropdownOpen = false" class="block px-4 py-2 text-sm text-gray-700 hover:bg-white/50">Update Stock</a>
                                         <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-white/50">Order More</a>
                                         <hr class="border-white/20 my-1">
                                         <a href="#" class="block px-4 py-2 text-sm text-red-600 hover:bg-white/50">Delete Item</a>
@@ -236,25 +232,36 @@
         
         <!-- Pagination -->
         <div class="flex items-center justify-between mt-6 pt-4 border-t border-white/10">
-            <div class="flex items-center space-x-2">
-                <span class="text-sm text-gray-600">Rows per page:</span>
-                <select class="px-3 py-1 glass-input rounded-lg text-sm text-gray-900">
-                    <option>10</option>
-                    <option>25</option>
-                    <option>50</option>
-                    <option>100</option>
-                </select>
+            <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-2">
+                    <span class="text-sm text-gray-600">Rows per page:</span>
+                    <select x-model="rowsPerPage" class="px-3 py-1 glass-input rounded-lg text-sm text-gray-900">
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+                <span class="text-sm text-gray-500"
+                      x-text="filteredItems.length === 0 ? 'No results' : 'Showing ' + (Math.min((currentPage - 1) * parseInt(rowsPerPage) + 1, filteredItems.length)) + '\u2013' + Math.min(currentPage * parseInt(rowsPerPage), filteredItems.length) + ' of ' + filteredItems.length">
+                </span>
             </div>
             <div class="flex items-center space-x-2">
-                <button class="p-2 rounded-lg hover:bg-white/10 transition-colors">
+                <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1"
+                        class="p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                     </svg>
                 </button>
-                <button class="px-3 py-1 bg-white/20 backdrop-blur-sm border border-white/30 rounded-lg text-sm text-gray-900">1</button>
-                <button class="px-3 py-1 rounded-lg text-sm text-gray-700 hover:bg-white/10">2</button>
-                <button class="px-3 py-1 rounded-lg text-sm text-gray-700 hover:bg-white/10">3</button>
-                <button class="p-2 rounded-lg hover:bg-white/10 transition-colors">
+                <template x-for="page in pageNumbers" :key="page">
+                    <button @click="goToPage(page)"
+                            class="px-3 py-1 rounded-lg text-sm transition-colors"
+                            :class="page === currentPage ? 'bg-white/20 backdrop-blur-sm border border-white/30 text-gray-900 font-medium' : 'text-gray-700 hover:bg-white/10'"
+                            x-text="page">
+                    </button>
+                </template>
+                <button @click="goToPage(currentPage + 1)" :disabled="currentPage >= totalPages"
+                        class="p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                     </svg>
@@ -290,6 +297,69 @@
         </div>
     </div>
     
+    <!-- Update Stock Modal -->
+    <div x-show="showStockModal" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(0,0,0,0.55)" x-cloak>
+        <div x-show="showStockModal" x-transition class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" @click.away="showStockModal = false">
+            <div class="flex items-center justify-between mb-5">
+                <h3 class="text-lg font-bold text-gray-900">Update Stock</h3>
+                <button @click="showStockModal = false" class="p-1 rounded-lg hover:bg-gray-100">
+                    <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <template x-if="stockItem">
+                <div>
+                    <div class="bg-gray-50 rounded-xl p-4 mb-5">
+                        <p class="text-sm font-semibold text-gray-900" x-text="stockItem.name"></p>
+                        <p class="text-xs text-gray-500 mt-1">SKU: <span x-text="stockItem.sku"></span> &bull; Current stock: <span class="font-medium" x-text="stockItem.quantity + ' units'"></span></p>
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Transaction Type</label>
+                            <select x-model="stockForm.transaction_type" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="receive">Receive Stock (add)</option>
+                                <option value="purchase">Purchase (add + update cost)</option>
+                                <option value="return">Return (add)</option>
+                                <option value="adjustment">Stock Adjustment (+/&minus;)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Quantity <span class="text-xs text-gray-400">(negative to reduce)</span></label>
+                            <input type="number" x-model="stockForm.quantity" step="1"
+                                   class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                   placeholder="e.g. 50">
+                        </div>
+                        <div x-show="['receive','purchase'].includes(stockForm.transaction_type)">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Unit Cost (optional)</label>
+                            <input type="number" x-model="stockForm.unit_cost" step="0.01" min="0"
+                                   class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                   placeholder="e.g. 45.00">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+                            <textarea x-model="stockForm.notes" rows="2"
+                                      class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                                      placeholder="e.g. Received from supplier XYZ"></textarea>
+                        </div>
+                    </div>
+                    <div x-show="stockError" class="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700" x-text="stockError"></div>
+                    <div x-show="stockSuccess" class="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700" x-text="stockSuccess"></div>
+                    <div class="flex items-center justify-end space-x-3 mt-5">
+                        <button @click="showStockModal = false" class="px-4 py-2 text-sm text-gray-700 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">Cancel</button>
+                        <button @click="submitStockUpdate()" :disabled="stockLoading"
+                                class="px-5 py-2 bg-gradient-to-r from-gray-900 to-black text-white text-sm font-medium rounded-xl hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center">
+                            <svg x-show="stockLoading" class="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                            <span x-text="stockLoading ? 'Saving...' : 'Update Stock'"></span>
+                        </button>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
 </div>
 @endsection
 
@@ -303,18 +373,124 @@ function inventoryManagement() {
         selectedItem: null,
         searchQuery: '',
         showFilters: false,
-        
+        currentPage: 1,
+        rowsPerPage: 10,
+        showStockModal: false,
+        stockItem: null,
+        stockForm: { quantity: '', transaction_type: 'receive', unit_cost: '', notes: '' },
+        stockLoading: false,
+        stockError: '',
+        stockSuccess: '',
+
         get filteredItems() {
             if (!this.searchQuery) return this.items;
-            
-            return this.items.filter(item => 
-                item.name.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-                item.sku.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-                item.category.toLowerCase().includes(this.searchQuery.toLowerCase())
+            const q = this.searchQuery.toLowerCase();
+            return this.items.filter(item =>
+                item.name.toLowerCase().includes(q) ||
+                item.sku.toLowerCase().includes(q) ||
+                item.category.toLowerCase().includes(q)
             );
         },
-        
+
+        get paginatedItems() {
+            const rpp  = parseInt(this.rowsPerPage);
+            const start = (this.currentPage - 1) * rpp;
+            return this.filteredItems.slice(start, start + rpp);
+        },
+
+        get totalPages() {
+            return Math.max(1, Math.ceil(this.filteredItems.length / parseInt(this.rowsPerPage)));
+        },
+
+        get pageNumbers() {
+            const total   = this.totalPages;
+            const current = this.currentPage;
+            const delta   = 2;
+            const pages   = [];
+            for (let i = Math.max(1, current - delta); i <= Math.min(total, current + delta); i++) {
+                pages.push(i);
+            }
+            return pages;
+        },
+
+        goToPage(page) {
+            if (page >= 1 && page <= this.totalPages) this.currentPage = page;
+        },
+
+        openStockModal(item) {
+            this.stockItem = item;
+            this.stockForm = { quantity: '', transaction_type: 'receive', unit_cost: '', notes: '' };
+            this.stockError = '';
+            this.stockSuccess = '';
+            this.showStockModal = true;
+        },
+
+        async submitStockUpdate() {
+            if (!this.stockForm.quantity || parseFloat(this.stockForm.quantity) === 0) {
+                this.stockError = 'Please enter a non-zero quantity.';
+                return;
+            }
+            this.stockLoading = true;
+            this.stockError = '';
+            this.stockSuccess = '';
+            let res;
+            try {
+                res = await fetch(`/inventory/${this.stockItem.uuid}/stock`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        quantity: parseFloat(this.stockForm.quantity),
+                        transaction_type: this.stockForm.transaction_type,
+                        unit_cost: this.stockForm.unit_cost ? parseFloat(this.stockForm.unit_cost) : null,
+                        notes: this.stockForm.notes || null,
+                    }),
+                });
+            } catch (networkErr) {
+                this.stockError = 'Network error — check your connection.';
+                this.stockLoading = false;
+                return;
+            }
+
+            let data;
+            try {
+                data = await res.json();
+            } catch {
+                this.stockError = `Server error (HTTP ${res.status}). Please refresh and try again.`;
+                this.stockLoading = false;
+                return;
+            }
+
+            try {
+                if (data.success) {
+                    const idx = this.items.findIndex(i => i.uuid === this.stockItem.uuid);
+                    if (idx !== -1) {
+                        this.items[idx].quantity   = data.new_quantity;
+                        this.items[idx].status     = data.new_status;
+                        this.items[idx].totalValue = parseFloat((data.new_quantity * this.items[idx].unitPrice).toFixed(2));
+                    }
+                    this.stats.totalItems  = this.items.length;
+                    this.stats.lowStock    = this.items.filter(i => i.status === 'LOW_STOCK').length;
+                    this.stats.outOfStock  = this.items.filter(i => i.status === 'OUT_OF_STOCK').length;
+                    this.stats.totalValue  = parseFloat(this.items.reduce((s, i) => s + (i.totalValue || 0), 0).toFixed(2));
+                    this.stockSuccess = 'Stock updated successfully!';
+                    setTimeout(() => { this.showStockModal = false; }, 1200);
+                } else {
+                    this.stockError = data.message || 'Failed to update stock.';
+                }
+            } catch (e) {
+                this.stockError = 'Unexpected client error: ' + e.message;
+            } finally {
+                this.stockLoading = false;
+            }
+        },
+
         init() {
+            this.$watch('searchQuery',  () => { this.currentPage = 1; });
+            this.$watch('rowsPerPage',  () => { this.currentPage = 1; });
             this.animateNumbers();
             this.initCharts();
         },

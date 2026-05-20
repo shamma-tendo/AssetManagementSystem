@@ -29,8 +29,8 @@ class WorkOrderLabor extends Model
 
     protected $casts = [
         'hours_worked' => 'decimal:4',
-        'hourly_rate' => 'decimal:8,2',
-        'total_cost' => 'decimal:15,2',
+        'hourly_rate' => 'float',
+        'total_cost' => 'float',
         'start_time' => 'datetime',
         'end_time' => 'datetime',
     ];
@@ -77,3 +77,4 @@ class WorkOrderLabor extends Model
         return null;
     }
 }
+

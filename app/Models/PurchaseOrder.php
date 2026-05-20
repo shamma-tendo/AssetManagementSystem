@@ -43,10 +43,10 @@ class PurchaseOrder extends Model
         'expected_delivery_date' => 'date',
         'actual_delivery_date' => 'date',
         'approved_at' => 'datetime',
-        'subtotal' => 'decimal:15,2',
-        'tax_amount' => 'decimal:15,2',
-        'shipping_cost' => 'decimal:15,2',
-        'total_amount' => 'decimal:15,2',
+        'subtotal' => 'float',
+        'tax_amount' => 'float',
+        'shipping_cost' => 'float',
+        'total_amount' => 'float',
         'status' => PurchaseOrderStatus::class,
         'priority' => PurchaseOrderPriority::class,
     ];
@@ -461,3 +461,4 @@ enum PurchaseOrderPriority: string
         };
     }
 }
+

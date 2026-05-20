@@ -29,8 +29,8 @@ class WorkOrderPart extends Model
 
     protected $casts = [
         'quantity_used' => 'decimal:4',
-        'unit_cost' => 'decimal:8,2',
-        'total_cost' => 'decimal:15,2',
+        'unit_cost' => 'float',
+        'total_cost' => 'float',
     ];
 
     /**
@@ -55,3 +55,4 @@ class WorkOrderPart extends Model
         });
     }
 }
+

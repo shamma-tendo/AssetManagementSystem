@@ -28,10 +28,10 @@ class PurchaseOrderItem extends Model
     ];
 
     protected $casts = [
-        'quantity' => 'decimal:10,4',
-        'unit_cost' => 'decimal:10,4',
-        'total_cost' => 'decimal:15,2',
-        'received_quantity' => 'decimal:10,4',
+        'quantity' => 'float',
+        'unit_cost' => 'float',
+        'total_cost' => 'float',
+        'received_quantity' => 'float',
         'expected_delivery_date' => 'date',
         'actual_delivery_date' => 'date',
         'specifications' => 'array',
@@ -153,3 +153,4 @@ class PurchaseOrderItem extends Model
         ];
     }
 }
+

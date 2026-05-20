@@ -18,27 +18,31 @@ class DashboardController extends Controller
     /**
      * Display the main dashboard.
      */
-    public function index()
+    public function index(Request $request)
     {
-        // Get dashboard statistics
-        $stats = $this->getDashboardStats();
-        
-        return view('dashboard', compact('stats'));
+        $period = (int) $request->input('period', 30);
+        $period = in_array($period, [7, 30, 90]) ? $period : 30;
+
+        $stats = $this->getDashboardStats($period);
+
+        return view('dashboard', compact('stats', 'period'));
     }
     
     /**
      * Get dashboard statistics.
      */
-    private function getDashboardStats()
+    private function getDashboardStats(int $period = 30): array
     {
         return [
-            'totalAssets' => $this->getTotalAssets(),
-            'criticalAlerts' => $this->getCriticalAlerts(),
-            'activeWorkOrders' => $this->getActiveWorkOrders(),
-            'lowStockSkus' => $this->getLowStockParts(),
-            'assetUtilization' => $this->getAssetUtilization(),
-            'recentActivity' => $this->getRecentActivity(),
+            'totalAssets'             => $this->getTotalAssets(),
+            'criticalAlerts'          => $this->getCriticalAlerts(),
+            'activeWorkOrders'        => $this->getActiveWorkOrders(),
+            'lowStockSkus'            => $this->getLowStockParts(),
+            'assetUtilization'        => $this->getAssetUtilization(),
+            'recentActivity'          => $this->getRecentActivity(),
             'highPriorityMaintenance' => $this->getHighPriorityMaintenance(),
+            'trends'                  => $this->getKpiTrends($period),
+            'bars'                    => $this->getProgressWidths(),
         ];
     }
     
@@ -175,7 +179,7 @@ class DashboardController extends Controller
     {
         $terminal = ['completed', 'closed', 'cancelled'];
 
-        return WorkOrder::with('asset')
+        return WorkOrder::with(['asset' => fn ($q) => $q->withMax('maintenanceHistories', 'performed_date')])
             ->whereNotIn('status', $terminal)
             ->whereIn('priority', ['emergency', 'urgent', 'high'])
             ->orderByRaw("CASE priority WHEN 'emergency' THEN 1 WHEN 'urgent' THEN 2 ELSE 3 END")
@@ -206,11 +210,7 @@ class DashboardController extends Controller
                     default       => 'bg-yellow-100/80 text-yellow-700 border-yellow-200/50',
                 };
 
-                $health = max(20, 85 - match ($pv) {
-                    'emergency' => 50,
-                    'urgent'    => 35,
-                    default     => 20,
-                });
+                $health = $wo->asset ? $this->computeAssetHealth($wo->asset) : 50;
 
                 return [
                     'asset_id'    => $wo->asset?->serial_number ?? 'N/A',
@@ -223,6 +223,143 @@ class DashboardController extends Controller
                 ];
             })
             ->toArray();
+    }
+
+    /**
+     * Compute a real asset health score (0–100) using the same weighted formula
+     * as AssetRegistryController: 40% age, 40% maintenance recency, 20% status.
+     */
+    private function computeAssetHealth(Asset $asset): int
+    {
+        $sv = $asset->status instanceof \BackedEnum ? $asset->status->value : (string) $asset->status;
+
+        if ($sv === 'retired')  return 20;
+        if ($sv === 'disposed') return 0;
+        if (in_array($sv, ['ordered', 'received'])) return 100;
+
+        $statusScore = $sv === 'under_maintenance' ? 60 : 100;
+
+        $usefulLife = max(1, $asset->useful_life_years ?? 10);
+        $ageYears   = $asset->purchase_date
+            ? $asset->purchase_date->diffInDays(now()) / 365.25
+            : $usefulLife * 0.5;
+        $ageScore   = (int) round(max(0, (1 - min(1.0, $ageYears / $usefulLife)) * 100));
+
+        $lastMaintDate = $asset->maintenance_histories_max_performed_date;
+        $daysSince = $lastMaintDate
+            ? now()->diffInDays(Carbon::parse($lastMaintDate))
+            : ($asset->purchase_date ? $asset->purchase_date->diffInDays(now()) : 730);
+
+        $maintenanceScore = match (true) {
+            $daysSince <= 30  => 100,
+            $daysSince <= 90  => 85,
+            $daysSince <= 180 => 70,
+            $daysSince <= 365 => 50,
+            $daysSince <= 730 => 30,
+            default           => 10,
+        };
+
+        return (int) max(0, min(100, round(($ageScore * 0.4) + ($maintenanceScore * 0.4) + ($statusScore * 0.2))));
+    }
+
+    /**
+     * Compute period-over-period KPI trend labels and CSS colour classes.
+     * Compares the current $period window against the equally-sized window before it.
+     */
+    private function getKpiTrends(int $period): array
+    {
+        $terminal    = ['completed', 'closed', 'cancelled'];
+        $periodStart = now()->subDays($period);
+        $prevStart   = now()->subDays($period * 2);
+
+        // Total Assets: new assets registered this period vs previous
+        $currAssets = Asset::where('created_at', '>=', $periodStart)->count();
+        $prevAssets = Asset::whereBetween('created_at', [$prevStart, $periodStart])->count();
+
+        // Critical Alerts: new urgent/emergency WOs opened this period vs previous
+        $currCrit = WorkOrder::whereNotIn('status', $terminal)
+            ->whereIn('priority', ['urgent', 'emergency'])
+            ->where('created_at', '>=', $periodStart)->count();
+        $prevCrit = WorkOrder::whereIn('priority', ['urgent', 'emergency'])
+            ->whereBetween('created_at', [$prevStart, $periodStart])->count();
+
+        // Active Work Orders: new WOs created this period vs previous
+        $currWOs = WorkOrder::where('created_at', '>=', $periodStart)->count();
+        $prevWOs = WorkOrder::whereBetween('created_at', [$prevStart, $periodStart])->count();
+
+        // Low Stock SKUs: current count vs count at start of period (last updated before it)
+        $currLow = Part::whereNotNull('reorder_point')
+            ->whereRaw('current_stock <= reorder_point')->count();
+        $prevLow = Part::whereNotNull('reorder_point')
+            ->where('updated_at', '<', $periodStart)
+            ->whereRaw('current_stock <= reorder_point')->count();
+
+        return [
+            'totalAssets' => [
+                'label' => $this->formatTrend($currAssets, $prevAssets, true),
+                'color' => $currAssets >= $prevAssets ? 'text-green-500' : 'text-red-500',
+            ],
+            'criticalAlerts' => [
+                'label' => $this->formatTrend($currCrit, $prevCrit, true),
+                'color' => $currCrit <= $prevCrit ? 'text-green-500' : 'text-red-500',
+            ],
+            'activeWorkOrders' => [
+                'label' => $this->formatTrend($currWOs, $prevWOs),
+                'color' => $currWOs <= $prevWOs ? 'text-green-500' : 'text-yellow-500',
+            ],
+            'lowStockSkus' => [
+                'label' => $this->formatTrend($currLow, $prevLow),
+                'color' => $currLow <= $prevLow ? 'text-green-500' : 'text-red-500',
+            ],
+        ];
+    }
+
+    /**
+     * Format a period-over-period trend as a string.
+     * $absolute = true  → shows raw delta (+3, -1)
+     * $absolute = false → shows percentage change (+12%, -5%)
+     */
+    private function formatTrend(int $current, int $previous, bool $absolute = false): string
+    {
+        if ($absolute) {
+            $delta = $current - $previous;
+            return ($delta >= 0 ? '+' : '') . $delta;
+        }
+        if ($previous === 0) {
+            return $current > 0 ? 'new' : '—';
+        }
+        $pct = (int) round((($current - $previous) / $previous) * 100);
+        return ($pct >= 0 ? '+' : '') . $pct . '%';
+    }
+
+    /**
+     * Compute KPI progress-bar widths as real percentages derived from live data.
+     *   totalAssets      → % of assets that are active
+     *   criticalAlerts   → % of open work orders that are urgent/emergency
+     *   activeWorkOrders → % of all work orders that are currently open
+     *   lowStockSkus     → % of tracked parts that are at or below reorder point
+     */
+    private function getProgressWidths(): array
+    {
+        $totalAssets  = max(1, Asset::count());
+        $activeAssets = Asset::where('status', 'active')->count();
+
+        $totalWOs    = max(1, WorkOrder::whereNotIn('status', ['completed', 'closed', 'cancelled'])->count());
+        $criticalWOs = WorkOrder::whereNotIn('status', ['completed', 'closed', 'cancelled'])
+            ->whereIn('priority', ['urgent', 'emergency'])->count();
+        $allWOs      = max(1, WorkOrder::count());
+        $activeWOs   = WorkOrder::whereNotIn('status', ['completed', 'closed', 'cancelled'])->count();
+
+        $totalParts = max(1, Part::count());
+        $lowStock   = Part::whereNotNull('reorder_point')
+            ->whereRaw('current_stock <= reorder_point')->count();
+
+        return [
+            'totalAssets'      => (int) round($activeAssets / $totalAssets * 100),
+            'criticalAlerts'   => (int) round($criticalWOs  / $totalWOs   * 100),
+            'activeWorkOrders' => (int) round($activeWOs    / $allWOs     * 100),
+            'lowStockSkus'     => (int) round($lowStock     / $totalParts * 100),
+        ];
     }
     
     /**

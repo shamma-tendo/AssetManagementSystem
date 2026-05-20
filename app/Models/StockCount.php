@@ -29,10 +29,10 @@ class StockCount extends Model
     ];
 
     protected $casts = [
-        'old_quantity' => 'decimal:10,4',
-        'new_quantity' => 'decimal:10,4',
-        'variance' => 'decimal:10,4',
-        'variance_percentage' => 'decimal:8,4',
+        'old_quantity' => 'float',
+        'new_quantity' => 'float',
+        'variance' => 'float',
+        'variance_percentage' => 'float',
         'counted_at' => 'datetime',
         'expiry_date' => 'date',
     ];
@@ -170,3 +170,4 @@ class StockCount extends Model
         ];
     }
 }
+

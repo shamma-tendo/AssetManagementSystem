@@ -43,7 +43,9 @@ class MaintenanceController extends Controller
      */
     private function getMaintenanceStats(): array
     {
-        $terminal = ['completed', 'closed', 'cancelled'];
+        $terminal      = ['completed', 'closed', 'cancelled'];
+        $thirtyDaysAgo = now()->subDays(30);
+        $sixtyDaysAgo  = now()->subDays(60);
 
         $activeOrders = WorkOrder::whereNotIn('status', $terminal)->count();
 
@@ -52,15 +54,52 @@ class MaintenanceController extends Controller
             ->where('scheduled_date', '<', now()->toDateString())
             ->count();
 
-        $since          = now()->subDays(30);
-        $totalPM        = WorkOrder::where('type', 'preventive_maintenance')->where('created_at', '>=', $since)->count();
-        $completedPM    = WorkOrder::where('type', 'preventive_maintenance')->whereIn('status', ['completed', 'closed'])->where('created_at', '>=', $since)->count();
-        $compliance     = $totalPM > 0 ? round(($completedPM / $totalPM) * 100, 1) : 100.0;
+        $totalPM     = WorkOrder::where('type', 'preventive_maintenance')->where('created_at', '>=', $thirtyDaysAgo)->count();
+        $completedPM = WorkOrder::where('type', 'preventive_maintenance')->whereIn('status', ['completed', 'closed'])->where('created_at', '>=', $thirtyDaysAgo)->count();
+        $compliance  = $totalPM > 0 ? round(($completedPM / $totalPM) * 100, 1) : 100.0;
+
+        // --- Trends (current 30-day window vs previous 30-day window) ---
+
+        // Active Orders: new WOs opened this period vs previous
+        $currActive  = WorkOrder::where('created_at', '>=', $thirtyDaysAgo)->count();
+        $prevActive  = WorkOrder::whereBetween('created_at', [$sixtyDaysAgo, $thirtyDaysAgo])->count();
+        $activeDelta = $currActive - $prevActive;
+
+        // Overdue: WOs whose scheduled_date fell in each window
+        $currOverdue  = WorkOrder::whereNotIn('status', $terminal)
+            ->whereBetween('scheduled_date', [$thirtyDaysAgo->toDateString(), now()->toDateString()])
+            ->count();
+        $prevOverdue  = WorkOrder::whereBetween('scheduled_date', [$sixtyDaysAgo->toDateString(), $thirtyDaysAgo->toDateString()])
+            ->count();
+        $overdueDelta = $currOverdue - $prevOverdue;
+
+        // Preventive Compliance: compare this period vs previous period
+        $totalPMPrev     = WorkOrder::where('type', 'preventive_maintenance')
+            ->whereBetween('created_at', [$sixtyDaysAgo, $thirtyDaysAgo])->count();
+        $completedPMPrev = WorkOrder::where('type', 'preventive_maintenance')
+            ->whereIn('status', ['completed', 'closed'])
+            ->whereBetween('created_at', [$sixtyDaysAgo, $thirtyDaysAgo])->count();
+        $prevCompliance  = $totalPMPrev > 0 ? round(($completedPMPrev / $totalPMPrev) * 100, 1) : 100.0;
+        $complianceDelta = round($compliance - $prevCompliance, 1);
 
         return [
             'activeOrders'         => $activeOrders,
             'overdue'              => $overdue,
             'preventiveCompliance' => $compliance,
+            'trends'               => [
+                'activeOrders' => [
+                    'label' => ($activeDelta >= 0 ? '+' : '') . $activeDelta,
+                    'color' => 'text-blue-400',
+                ],
+                'overdue' => [
+                    'label' => ($overdueDelta >= 0 ? '+' : '') . $overdueDelta,
+                    'color' => $overdueDelta <= 0 ? 'text-green-400' : 'text-red-500',
+                ],
+                'preventiveCompliance' => [
+                    'label' => ($complianceDelta >= 0 ? '+' : '') . $complianceDelta . '%',
+                    'color' => $complianceDelta >= 0 ? 'text-green-400' : 'text-red-400',
+                ],
+            ],
         ];
     }
     
@@ -116,12 +155,20 @@ class MaintenanceController extends Controller
         $sv = $wo->status instanceof \BackedEnum ? $wo->status->value : (string) $wo->status;
         $pv = $wo->priority instanceof \BackedEnum ? $wo->priority->value : (string) $wo->priority;
 
-        $progress = match($sv) {
-            'in_progress'        => 50,
-            'on_hold'            => 30,
-            'completed', 'closed' => 100,
-            default              => 0,
-        };
+        if (in_array($sv, ['completed', 'closed'])) {
+            $progress = 100;
+        } elseif (in_array($sv, ['in_progress', 'on_hold'])
+            && ($wo->estimated_hours ?? 0) > 0
+            && ($wo->actual_hours    ?? 0) > 0) {
+            $cap      = $sv === 'in_progress' ? 99 : 90;
+            $progress = (int) min($cap, round(($wo->actual_hours / $wo->estimated_hours) * 100));
+        } else {
+            $progress = match($sv) {
+                'in_progress' => 50,
+                'on_hold'     => 30,
+                default       => 0,
+            };
+        }
 
         $overdueDays = ($wo->scheduled_date && $wo->scheduled_date->isPast())
             ? (int) now()->diffInDays($wo->scheduled_date)

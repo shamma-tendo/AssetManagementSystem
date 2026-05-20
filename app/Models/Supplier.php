@@ -42,7 +42,7 @@ class Supplier extends Model
 
     protected $casts = [
         'lead_time_days' => 'integer',
-        'minimum_order_value' => 'decimal:15,2',
+        'minimum_order_value' => 'float',
         'is_active' => 'boolean',
         'is_manufacturer' => 'boolean',
     ];
@@ -176,3 +176,4 @@ class Supplier extends Model
         }
     }
 }
+

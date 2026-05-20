@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Support\Facades\DB;
 
 class Part extends Model
 {
@@ -55,17 +56,17 @@ class Part extends Model
     ];
 
     protected $casts = [
-        'current_stock' => 'decimal:10,4',
-        'minimum_stock' => 'decimal:10,4',
-        'maximum_stock' => 'decimal:10,4',
-        'reorder_point' => 'decimal:10,4',
-        'reorder_quantity' => 'decimal:10,4',
-        'unit_cost' => 'decimal:10,4',
-        'average_cost' => 'decimal:10,4',
-        'selling_price' => 'decimal:10,4',
+        'current_stock' => 'float',
+        'minimum_stock' => 'float',
+        'maximum_stock' => 'float',
+        'reorder_point' => 'float',
+        'reorder_quantity' => 'float',
+        'unit_cost' => 'float',
+        'average_cost' => 'float',
+        'selling_price' => 'float',
         'lead_time_days' => 'integer',
         'shelf_life_days' => 'integer',
-        'weight_kg' => 'decimal:8,4',
+        'weight_kg' => 'float',
         'serial_number_required' => 'boolean',
         'batch_number_required' => 'boolean',
         'expiry_date_required' => 'boolean',
@@ -360,9 +361,14 @@ class Part extends Model
                 'performed_at' => now(),
             ]);
 
-            // Update current stock
-            $this->current_stock += $quantity;
-            $this->save();
+            // Update current stock using raw SQL to avoid decimal-cast issues
+            DB::table('parts')
+                ->where('id', $this->id)
+                ->update([
+                    'current_stock' => DB::raw('current_stock + ' . (float) $quantity),
+                    'updated_at'    => now()->toDateTimeString(),
+                ]);
+            $this->refresh();
 
             // Update average cost if it's a purchase
             if ($transactionType === 'purchase' && $quantity > 0) {
@@ -372,7 +378,7 @@ class Part extends Model
             DB::commit();
 
             return $transaction;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             DB::rollBack();
             throw $e;
         }
@@ -383,14 +389,21 @@ class Part extends Model
      */
     private function updateAverageCost(float $newCost, float $quantity): void
     {
-        if ($this->current_stock == 0) {
-            $this->average_cost = $newCost;
-        } else {
-            $totalValue = ($this->average_cost * $this->current_stock) + ($newCost * $quantity);
-            $this->average_cost = $totalValue / ($this->current_stock + $quantity);
-        }
-        
-        $this->save();
+        $this->refresh();
+        $currentStock = (float) ($this->getRawOriginal('current_stock') ?? 0);
+        $currentCost  = (float) ($this->getRawOriginal('average_cost') ?? 0);
+
+        $avgCost = $currentStock > 0
+            ? (($currentCost * ($currentStock - $quantity)) + ($newCost * $quantity)) / $currentStock
+            : $newCost;
+
+        DB::table('parts')
+            ->where('id', $this->id)
+            ->update([
+                'average_cost' => round($avgCost, 4),
+                'updated_at'   => now()->toDateTimeString(),
+            ]);
+        $this->refresh();
     }
 
     /**

@@ -35,9 +35,9 @@ class InventoryTransaction extends Model
     ];
 
     protected $casts = [
-        'quantity' => 'decimal:10,4',
-        'unit_cost' => 'decimal:10,4',
-        'total_cost' => 'decimal:15,2',
+        'quantity' => 'float',
+        'unit_cost' => 'float',
+        'total_cost' => 'float',
         'expiry_date' => 'date',
         'performed_at' => 'datetime',
         'serial_numbers' => 'array',

@@ -27,9 +27,9 @@ class PartStockLocation extends Model
     ];
 
     protected $casts = [
-        'quantity' => 'decimal:10,4',
-        'minimum_quantity' => 'decimal:10,4',
-        'maximum_quantity' => 'decimal:10,4',
+        'quantity' => 'float',
+        'minimum_quantity' => 'float',
+        'maximum_quantity' => 'float',
         'last_counted_at' => 'datetime',
     ];
 
@@ -184,3 +184,4 @@ class PartStockLocation extends Model
         ];
     }
 }
+

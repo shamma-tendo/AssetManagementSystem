@@ -42,241 +42,165 @@ class InventoryController extends Controller
         // Get inventory analytics data
         $analytics = $this->getInventoryAnalytics();
         
-        return view('inventory', compact('stats', 'items', 'analytics'));
+        $categories = PartCategory::orderBy('name')->get(['id', 'name']);
+        $suppliers  = Supplier::orderBy('name')->get(['id', 'name']);
+        $locations  = Part::whereNotNull('storage_location')
+            ->distinct()->pluck('storage_location')->filter()->sort()->values();
+
+        return view('inventory', compact('stats', 'items', 'analytics', 'categories', 'suppliers', 'locations'));
     }
     
     /**
      * Get inventory statistics.
      */
-    private function getInventoryStats()
+    private function getInventoryStats(): array
     {
+        $thirtyDaysAgo = now()->subDays(30);
+        $sixtyDaysAgo  = now()->subDays(60);
+
+        $totalItems = Part::count();
+        $lowStock   = Part::whereNotNull('reorder_point')
+            ->whereRaw('current_stock > 0 AND current_stock <= reorder_point')
+            ->count();
+        $outOfStock = Part::where('current_stock', '<=', 0)->count();
+        $totalValue = (float) (Part::selectRaw('SUM(current_stock * COALESCE(average_cost, unit_cost, 0)) as total')
+            ->value('total') ?? 0);
+
+        $currNew    = Part::where('created_at', '>=', $thirtyDaysAgo)->count();
+        $prevNew    = Part::whereBetween('created_at', [$sixtyDaysAgo, $thirtyDaysAgo])->count();
+        $itemsDelta = $currNew - $prevNew;
+
+        $prevLow  = Part::whereNotNull('reorder_point')
+            ->whereRaw('current_stock > 0 AND current_stock <= reorder_point')
+            ->where('updated_at', '<', $thirtyDaysAgo)->count();
+        $lowDelta = $lowStock - $prevLow;
+
+        $prevOut  = Part::where('current_stock', '<=', 0)->where('updated_at', '<', $thirtyDaysAgo)->count();
+        $outDelta = $outOfStock - $prevOut;
+
+        $currVal = (float) DB::table('inventory_transactions')
+            ->where('transaction_type', 'receive')
+            ->where('performed_at', '>=', $thirtyDaysAgo)->sum('total_cost');
+        $prevVal = (float) DB::table('inventory_transactions')
+            ->where('transaction_type', 'receive')
+            ->whereBetween('performed_at', [$sixtyDaysAgo, $thirtyDaysAgo])->sum('total_cost');
+
+        if ($prevVal > 0) {
+            $valPct   = round(($currVal - $prevVal) / $prevVal * 100, 1);
+            $valLabel = ($valPct >= 0 ? '+' : '') . $valPct . '%';
+            $valColor = $valPct >= 0 ? 'text-green-400' : 'text-red-400';
+        } else {
+            $valLabel = '—';
+            $valColor = 'text-gray-400';
+        }
+
         return [
-            'totalItems' => 342,
-            'lowStock' => 12,
-            'outOfStock' => 3,
-            'totalValue' => 284750.50,
+            'totalItems' => $totalItems,
+            'lowStock'   => $lowStock,
+            'outOfStock' => $outOfStock,
+            'totalValue' => round($totalValue, 2),
+            'trends'     => [
+                'totalItems' => ['label' => ($itemsDelta >= 0 ? '+' : '') . $itemsDelta, 'color' => 'text-blue-400'],
+                'lowStock'   => ['label' => ($lowDelta   >= 0 ? '+' : '') . $lowDelta,   'color' => $lowDelta <= 0 ? 'text-green-400' : 'text-yellow-500'],
+                'outOfStock' => ['label' => ($outDelta   >= 0 ? '+' : '') . $outDelta,   'color' => $outDelta <= 0 ? 'text-green-400' : 'text-red-500'],
+                'totalValue' => ['label' => $valLabel, 'color' => $valColor],
+            ],
         ];
     }
     
     /**
-     * Get inventory items.
+     * Get inventory items from the parts table.
      */
-    private function getInventoryItems()
+    private function getInventoryItems(): array
     {
-        return [
-            [
-                'id' => 'INV-001',
-                'name' => 'Industrial Bearings 6205-2RS',
-                'category' => 'Mechanical Parts',
-                'sku' => 'BRG-6205-2RS',
-                'quantity' => 245,
-                'minStock' => 50,
-                'maxStock' => 500,
-                'unitPrice' => 45.75,
-                'totalValue' => 11208.75,
-                'supplier' => 'TechParts Inc.',
-                'location' => 'Warehouse A - Shelf 12',
-                'status' => 'IN_STOCK',
-                'lastRestocked' => '2024-05-10',
-                'reorderLevel' => 50
-            ],
-            [
-                'id' => 'INV-002',
-                'name' => 'Hydraulic Oil ISO VG 46',
-                'category' => 'Fluids & Lubricants',
-                'sku' => 'HYD-OIL-46',
-                'quantity' => 15,
-                'minStock' => 25,
-                'maxStock' => 100,
-                'unitPrice' => 125.50,
-                'totalValue' => 1882.50,
-                'supplier' => 'FluidTech Solutions',
-                'location' => 'Storage Tank B',
-                'status' => 'LOW_STOCK',
-                'lastRestocked' => '2024-04-28',
-                'reorderLevel' => 25
-            ],
-            [
-                'id' => 'INV-003',
-                'name' => 'Temperature Sensor PT100',
-                'category' => 'Electronics',
-                'sku' => 'SENS-PT100',
-                'quantity' => 0,
-                'minStock' => 20,
-                'maxStock' => 100,
-                'unitPrice' => 89.99,
-                'totalValue' => 0.00,
-                'supplier' => 'SensorTech Pro',
-                'location' => 'Electronics Cabinet C',
-                'status' => 'OUT_OF_STOCK',
-                'lastRestocked' => '2024-04-15',
-                'reorderLevel' => 20
-            ],
-            [
-                'id' => 'INV-004',
-                'name' => 'Conveyor Belt 500mm x 10m',
-                'category' => 'Conveyor Systems',
-                'sku' => 'CNV-BELT-500',
-                'quantity' => 8,
-                'minStock' => 5,
-                'maxStock' => 20,
-                'unitPrice' => 342.00,
-                'totalValue' => 2736.00,
-                'supplier' => 'BeltMaster Corp',
-                'location' => 'Warehouse B - Rack 3',
-                'status' => 'IN_STOCK',
-                'lastRestocked' => '2024-05-08',
-                'reorderLevel' => 5
-            ],
-            [
-                'id' => 'INV-005',
-                'name' => 'Electric Motor 5HP 3Phase',
-                'category' => 'Motors & Drives',
-                'sku' => 'MOT-5HP-3PH',
-                'quantity' => 3,
-                'minStock' => 2,
-                'maxStock' => 10,
-                'unitPrice' => 1250.00,
-                'totalValue' => 3750.00,
-                'supplier' => 'MotorWorks Ltd',
-                'location' => 'Motor Storage D',
-                'status' => 'IN_STOCK',
-                'lastRestocked' => '2024-05-05',
-                'reorderLevel' => 2
-            ],
-            [
-                'id' => 'INV-006',
-                'name' => 'Pressure Relief Valve 1/2"',
-                'category' => 'Valves & Fittings',
-                'sku' => 'VALVE-PR-012',
-                'quantity' => 45,
-                'minStock' => 30,
-                'maxStock' => 150,
-                'unitPrice' => 67.25,
-                'totalValue' => 3026.25,
-                'supplier' => 'ValveTech International',
-                'location' => 'Valves Section E',
-                'status' => 'IN_STOCK',
-                'lastRestocked' => '2024-05-09',
-                'reorderLevel' => 30
-            ],
-            [
-                'id' => 'INV-007',
-                'name' => 'LED Flood Light 150W',
-                'category' => 'Lighting',
-                'sku' => 'LED-FLD-150',
-                'quantity' => 18,
-                'minStock' => 25,
-                'maxStock' => 100,
-                'unitPrice' => 95.50,
-                'totalValue' => 1719.00,
-                'supplier' => 'LightTech Solutions',
-                'location' => 'Lighting Storage F',
-                'status' => 'LOW_STOCK',
-                'lastRestocked' => '2024-04-20',
-                'reorderLevel' => 25
-            ],
-            [
-                'id' => 'INV-008',
-                'name' => 'Circuit Breaker 3P 100A',
-                'category' => 'Electrical',
-                'sku' => 'CB-3P-100A',
-                'quantity' => 12,
-                'minStock' => 10,
-                'maxStock' => 50,
-                'unitPrice' => 145.00,
-                'totalValue' => 1740.00,
-                'supplier' => 'ElectroSupply Co',
-                'location' => 'Electrical Panel G',
-                'status' => 'IN_STOCK',
-                'lastRestocked' => '2024-05-11',
-                'reorderLevel' => 10
-            ],
-            [
-                'id' => 'INV-009',
-                'name' => 'Pneumatic Cylinder 50mm Stroke',
-                'category' => 'Pneumatics',
-                'sku' => 'PNEU-CYL-50',
-                'quantity' => 6,
-                'minStock' => 8,
-                'maxStock' => 30,
-                'unitPrice' => 225.75,
-                'totalValue' => 1354.50,
-                'supplier' => 'PneuTech Systems',
-                'location' => 'Pneumatics Bay H',
-                'status' => 'LOW_STOCK',
-                'lastRestocked' => '2024-04-25',
-                'reorderLevel' => 8
-            ],
-            [
-                'id' => 'INV-010',
-                'name' => 'Steel Plate 10mm x 1m x 2m',
-                'category' => 'Raw Materials',
-                'sku' => 'STEEL-10MM',
-                'quantity' => 24,
-                'minStock' => 15,
-                'maxStock' => 50,
-                'unitPrice' => 180.00,
-                'totalValue' => 4320.00,
-                'supplier' => 'MetalWorks Supply',
-                'location' => 'Raw Materials Yard',
-                'status' => 'IN_STOCK',
-                'lastRestocked' => '2024-05-07',
-                'reorderLevel' => 15
-            ],
-            [
-                'id' => 'INV-011',
-                'name' => 'Filter Element 5 Micron',
-                'category' => 'Filters',
-                'sku' => 'FILT-5MIC',
-                'quantity' => 0,
-                'minStock' => 40,
-                'maxStock' => 200,
-                'unitPrice' => 18.50,
-                'totalValue' => 0.00,
-                'supplier' => 'FilterTech Pro',
-                'location' => 'Filter Storage I',
-                'status' => 'OUT_OF_STOCK',
-                'lastRestocked' => '2024-04-10',
-                'reorderLevel' => 40
-            ],
-            [
-                'id' => 'INV-012',
-                'name' => 'Gearbox Reducer 10:1',
-                'category' => 'Mechanical Parts',
-                'sku' => 'GEAR-10-1',
-                'quantity' => 4,
-                'minStock' => 3,
-                'maxStock' => 15,
-                'unitPrice' => 890.00,
-                'totalValue' => 3560.00,
-                'supplier' => 'GearTech Solutions',
-                'location' => 'Mechanical Parts J',
-                'status' => 'IN_STOCK',
-                'lastRestocked' => '2024-05-06',
-                'reorderLevel' => 3
-            ]
-        ];
+        return Part::with(['category', 'supplier'])
+            ->orderBy('name')
+            ->get()
+            ->map(function ($part) {
+                $stock        = (float) ($part->getRawOriginal('current_stock') ?? 0);
+                $reorderPoint = (float) ($part->getRawOriginal('reorder_point') ?? $part->getRawOriginal('minimum_stock') ?? 0);
+                $maxStock     = (float) ($part->getRawOriginal('maximum_stock') ?? 0);
+                $unitCost     = (float) ($part->getRawOriginal('unit_cost') ?? $part->getRawOriginal('average_cost') ?? 0);
+
+                $status = match (true) {
+                    $stock <= 0                                    => 'OUT_OF_STOCK',
+                    $reorderPoint > 0 && $stock <= $reorderPoint  => 'LOW_STOCK',
+                    default                                        => 'IN_STOCK',
+                };
+
+                return [
+                    'id'            => $part->part_number ?? ('INV-' . strtoupper(substr($part->id, 0, 6))),
+                    'uuid'          => $part->id,
+                    'name'          => $part->name,
+                    'category'      => $part->category?->name ?? 'Uncategorized',
+                    'sku'           => $part->part_number ?? 'N/A',
+                    'quantity'      => (int) $stock,
+                    'minStock'      => (int) $reorderPoint,
+                    'maxStock'      => (int) $maxStock,
+                    'unitPrice'     => round($unitCost, 2),
+                    'totalValue'    => round($stock * $unitCost, 2),
+                    'supplier'      => $part->supplier?->name ?? 'N/A',
+                    'location'      => $part->storage_location ?? $part->bin_location ?? 'N/A',
+                    'status'        => $status,
+                    'lastRestocked' => $part->updated_at?->format('Y-m-d') ?? 'N/A',
+                    'reorderLevel'  => (int) $reorderPoint,
+                ];
+            })
+            ->toArray();
     }
     
     /**
-     * Get inventory analytics data.
+     * Get real inventory analytics: cumulative SKU counts, value by category, weekly usage.
      */
-    private function getInventoryAnalytics()
+    private function getInventoryAnalytics(): array
     {
+        $months = collect(range(5, 0))->map(fn($i) => now()->subMonths($i));
+
+        // Stock Levels: cumulative SKU count registered by end of each month
+        $stockLevels = $months->map(
+            fn($m) => Part::where('created_at', '<=', $m->copy()->endOfMonth()->toDateTimeString())->count()
+        );
+
+        // Value by Category: real valuation from parts table
+        $catRows = DB::table('parts')
+            ->join('part_categories', 'parts.category_id', '=', 'part_categories.id')
+            ->select('part_categories.name as category_name')
+            ->selectRaw('ROUND(SUM(parts.current_stock * COALESCE(parts.average_cost, parts.unit_cost, 0)), 2) as category_value')
+            ->groupBy('part_categories.id', 'part_categories.name')
+            ->orderByDesc('category_value')
+            ->limit(6)
+            ->get();
+
+        // Weekly Usage: total cost of issued stock per week (last 4 weeks)
+        $weeks = collect(range(3, 0))->map(fn($i) => [
+            'label' => 'Week ' . (4 - $i),
+            'start' => now()->subWeeks($i)->startOfWeek()->toDateTimeString(),
+            'end'   => now()->subWeeks($i)->endOfWeek()->toDateTimeString(),
+        ]);
+
+        $weeklyUsage = $weeks->map(fn($w) => round(
+            DB::table('inventory_transactions')
+                ->join('parts', 'inventory_transactions.part_id', '=', 'parts.id')
+                ->where('inventory_transactions.transaction_type', 'issue')
+                ->whereBetween('inventory_transactions.performed_at', [$w['start'], $w['end']])
+                ->selectRaw('SUM(ABS(inventory_transactions.quantity) * COALESCE(parts.average_cost, parts.unit_cost, 0)) as usage_value')
+                ->value('usage_value') ?? 0,
+            2
+        ));
+
         return [
             'stockLevels' => [
-                'labels' => ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-                'data' => [285, 298, 312, 295, 342, 328]
+                'labels' => $months->map(fn($m) => $m->format('M'))->values()->toArray(),
+                'data'   => $stockLevels->values()->toArray(),
             ],
             'valueByCategory' => [
-                'labels' => ['Mechanical Parts', 'Fluids & Lubricants', 'Electronics', 'Motors & Drives', 'Valves & Fittings', 'Other'],
-                'data' => [45750, 28500, 32100, 38900, 27800, 11200]
+                'labels' => $catRows->pluck('category_name')->values()->toArray(),
+                'data'   => $catRows->pluck('category_value')->map(fn($v) => (float) $v)->values()->toArray(),
             ],
             'monthlyUsage' => [
-                'labels' => ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
-                'data' => [12450, 15800, 11200, 18900]
-            ]
+                'labels' => $weeks->pluck('label')->values()->toArray(),
+                'data'   => $weeklyUsage->values()->toArray(),
+            ],
         ];
     }
     
@@ -686,6 +610,59 @@ class InventoryController extends Controller
                 'message' => 'Failed to create transaction',
                 'error' => config('app.debug') ? $e->getMessage() : 'Server error',
             ], 500);
+        }
+    }
+
+    /**
+     * Update stock for a part (called from the inventory page).
+     */
+    public function updateStock(Request $request, string $itemId): JsonResponse
+    {
+        $part = Part::findOrFail($itemId);
+
+        $validator = Validator::make($request->all(), [
+            'quantity'         => 'required|numeric|not_in:0',
+            'transaction_type' => 'required|in:receive,purchase,return,adjustment',
+            'unit_cost'        => 'nullable|numeric|min:0',
+            'notes'            => 'nullable|string|max:500',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => 'Validation failed', 'errors' => $validator->errors()], 422);
+        }
+
+        $validated = $validator->validated();
+        $metadata  = array_filter([
+            'unit_cost' => $validated['unit_cost'] ?? null,
+            'notes'     => $validated['notes'] ?? null,
+        ]);
+
+        try {
+            $part->updateStock(
+                (float) $validated['quantity'],
+                $validated['transaction_type'],
+                $validated['notes'] ?? null,
+                $metadata
+            );
+
+            $part->refresh();
+            $newStock     = (float) ($part->getRawOriginal('current_stock') ?? 0);
+            $reorderPoint = (float) ($part->getRawOriginal('reorder_point') ?? 0);
+
+            $status = match (true) {
+                $newStock <= 0                                   => 'OUT_OF_STOCK',
+                $reorderPoint > 0 && $newStock <= $reorderPoint => 'LOW_STOCK',
+                default                                          => 'IN_STOCK',
+            };
+
+            return response()->json([
+                'success'      => true,
+                'message'      => 'Stock updated successfully',
+                'new_quantity' => (int) $newStock,
+                'new_status'   => $status,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
 

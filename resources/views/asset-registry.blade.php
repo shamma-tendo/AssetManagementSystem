@@ -122,7 +122,7 @@
             </div>
             <div class="mt-4">
                 <div class="w-full bg-white/20 rounded-full h-2">
-                    <div class="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full" style="width: 85%"></div>
+                    <div class="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full" style="width: {{ $stats['bars']['totalAssets'] }}%"></div>
                 </div>
             </div>
         </div>
@@ -143,7 +143,7 @@
             </div>
             <div class="mt-4">
                 <div class="w-full bg-white/20 rounded-full h-2">
-                    <div class="bg-gradient-to-r from-green-500 to-green-600 h-2 rounded-full" style="width: 95%"></div>
+                    <div class="bg-gradient-to-r from-green-500 to-green-600 h-2 rounded-full" style="width: {{ $stats['bars']['operational'] }}%"></div>
                 </div>
             </div>
         </div>
@@ -164,7 +164,7 @@
             </div>
             <div class="mt-4">
                 <div class="w-full bg-white/20 rounded-full h-2">
-                    <div class="bg-gradient-to-r from-red-500 to-red-600 h-2 rounded-full" style="width: 25%"></div>
+                    <div class="bg-gradient-to-r from-red-500 to-red-600 h-2 rounded-full" style="width: {{ $stats['bars']['inRepair'] }}%"></div>
                 </div>
             </div>
         </div>
@@ -185,7 +185,7 @@
             </div>
             <div class="mt-4">
                 <div class="w-full bg-white/20 rounded-full h-2">
-                    <div class="bg-gradient-to-r from-purple-500 to-purple-600 h-2 rounded-full" style="width: 99%"></div>
+                    <div class="bg-gradient-to-r from-purple-500 to-purple-600 h-2 rounded-full" style="width: {{ $stats['bars']['uptimeAvg'] }}%"></div>
                 </div>
             </div>
         </div>
@@ -354,12 +354,6 @@
                             <p class="text-sm text-gray-900" x-text="selectedAsset?.warrantyEnd"></p>
                         </div>
                         
-                        <!-- Power Requirement -->
-                        <div>
-                            <p class="text-sm text-gray-500 mb-1">Power Requirement</p>
-                            <p class="text-sm text-gray-900" x-text="selectedAsset?.powerRequirement"></p>
-                        </div>
-                        
                         <!-- Separator -->
                         <div class="border-t border-white/10"></div>
                         
@@ -416,96 +410,167 @@
     <!-- New Asset Modal -->
     <template x-teleport="body">
     <div x-show="showNewAssetModal" x-transition class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="fixed inset-0 bg-black/50" @click="showNewAssetModal = false"></div>
-        <div class="relative bg-white/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col">
+        <div class="fixed inset-0" style="background:rgba(0,0,0,.75);backdrop-filter:blur(4px);" @click="showNewAssetModal = false"></div>
+        <div class="relative max-w-lg w-full max-h-[90vh] flex flex-col"
+             style="background:#0d1829;border:1px solid rgba(255,255,255,.1);border-radius:20px;box-shadow:0 25px 80px rgba(0,0,0,.7);">
+
             <!-- Modal Header -->
-            <div class="flex items-center justify-between p-6 border-b border-gray-200">
-                <h2 class="text-xl font-bold text-gray-900">Add New Asset</h2>
-                <button @click="showNewAssetModal = false" class="p-2 rounded-lg hover:bg-gray-100">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
+            <div class="flex items-center justify-between" style="padding:20px 24px;border-bottom:1px solid rgba(255,255,255,.07);">
+                <div class="flex items-center gap-3">
+                    <div style="width:36px;height:36px;background:linear-gradient(135deg,rgba(16,185,129,.2),rgba(59,130,246,.15));border:1px solid rgba(16,185,129,.3);border-radius:10px;display:flex;align-items:center;justify-content:center;">
+                        <svg width="17" height="17" fill="none" stroke="#10b981" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                    </div>
+                    <div>
+                        <h2 style="font-size:1.05rem;font-weight:800;color:#f1f5f9;line-height:1.2;">Add New Asset</h2>
+                        <p style="font-size:.75rem;color:#64748b;margin-top:1px;">Fill in the asset details below</p>
+                    </div>
+                </div>
+                <button @click="showNewAssetModal = false"
+                        style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px;cursor:pointer;padding:7px;color:#64748b;display:flex;transition:all .15s;"
+                        onmouseover="this.style.background='rgba(239,68,68,.12)';this.style.color='#f87171';"
+                        onmouseout="this.style.background='rgba(255,255,255,.05)';this.style.color='#64748b';">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
             </div>
+
             <!-- Modal Body (scrollable) -->
-            <div class="overflow-y-auto flex-1 p-6">
+            <div class="overflow-y-auto flex-1" style="padding:24px;">
             <form id="newAssetForm" method="POST" action="{{ route('asset-registry.store') }}">
                 @csrf
-                <div class="space-y-4">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="col-span-2">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Asset Name <span class="text-red-500">*</span></label>
-                            <input type="text" name="name" required value="{{ old('name') }}"
-                                class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                        </div>
+                <div style="display:flex;flex-direction:column;gap:16px;">
+
+                    <!-- Asset Name (full width) -->
+                    <div>
+                        <label style="display:block;font-size:.8rem;font-weight:600;color:#94a3b8;margin-bottom:6px;letter-spacing:.02em;">
+                            Asset Name <span style="color:#f87171;">*</span>
+                        </label>
+                        <input type="text" name="name" required value="{{ old('name') }}"
+                               placeholder="e.g. Industrial Pump Unit A"
+                               style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:10px;color:#f1f5f9;font-size:.875rem;font-family:inherit;outline:none;transition:all .15s;"
+                               onfocus="this.style.borderColor='rgba(16,185,129,.5)';this.style.boxShadow='0 0 0 3px rgba(16,185,129,.08)';"
+                               onblur="this.style.borderColor='rgba(255,255,255,.09)';this.style.boxShadow='none';">
+                    </div>
+
+                    <!-- 2-col row: Serial + Status -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Serial Number <span class="text-red-500">*</span></label>
+                            <label style="display:block;font-size:.8rem;font-weight:600;color:#94a3b8;margin-bottom:6px;">
+                                Serial Number <span style="color:#f87171;">*</span>
+                            </label>
                             <input type="text" name="serial_number" required value="{{ old('serial_number') }}"
-                                class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                   placeholder="SN-000000"
+                                   style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:10px;color:#f1f5f9;font-size:.875rem;font-family:inherit;outline:none;transition:all .15s;"
+                                   onfocus="this.style.borderColor='rgba(16,185,129,.5)';this.style.boxShadow='0 0 0 3px rgba(16,185,129,.08)';"
+                                   onblur="this.style.borderColor='rgba(255,255,255,.09)';this.style.boxShadow='none';">
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Status <span class="text-red-500">*</span></label>
-                            <select name="status" required class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                <option value="active" {{ old('status') == 'active' ? 'selected' : '' }}>Active</option>
-                                <option value="ordered" {{ old('status') == 'ordered' ? 'selected' : '' }}>Ordered</option>
-                                <option value="received" {{ old('status') == 'received' ? 'selected' : '' }}>Received</option>
-                                <option value="under_maintenance" {{ old('status') == 'under_maintenance' ? 'selected' : '' }}>Under Maintenance</option>
-                                <option value="retired" {{ old('status') == 'retired' ? 'selected' : '' }}>Retired</option>
-                                <option value="disposed" {{ old('status') == 'disposed' ? 'selected' : '' }}>Disposed</option>
+                            <label style="display:block;font-size:.8rem;font-weight:600;color:#94a3b8;margin-bottom:6px;">
+                                Status <span style="color:#f87171;">*</span>
+                            </label>
+                            <select name="status" required
+                                    style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:10px;color:#f1f5f9;font-size:.875rem;font-family:inherit;outline:none;transition:all .15s;"
+                                    onfocus="this.style.borderColor='rgba(16,185,129,.5)';" onblur="this.style.borderColor='rgba(255,255,255,.09)';">
+                                <option value="active"            {{ old('status')=='active'             ? 'selected' : '' }}>Active</option>
+                                <option value="ordered"           {{ old('status')=='ordered'            ? 'selected' : '' }}>Ordered</option>
+                                <option value="received"          {{ old('status')=='received'           ? 'selected' : '' }}>Received</option>
+                                <option value="under_maintenance" {{ old('status')=='under_maintenance'  ? 'selected' : '' }}>Under Maintenance</option>
+                                <option value="retired"           {{ old('status')=='retired'            ? 'selected' : '' }}>Retired</option>
+                                <option value="disposed"          {{ old('status')=='disposed'           ? 'selected' : '' }}>Disposed</option>
                             </select>
                         </div>
+                    </div>
+
+                    <!-- 2-col row: Category + Location -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Category <span class="text-red-500">*</span></label>
-                            <select name="category_id" required class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <label style="display:block;font-size:.8rem;font-weight:600;color:#94a3b8;margin-bottom:6px;">
+                                Category <span style="color:#f87171;">*</span>
+                            </label>
+                            <select name="category_id" required
+                                    style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:10px;color:#f1f5f9;font-size:.875rem;font-family:inherit;outline:none;transition:all .15s;"
+                                    onfocus="this.style.borderColor='rgba(16,185,129,.5)';" onblur="this.style.borderColor='rgba(255,255,255,.09)';">
                                 <option value="">Select Category</option>
                                 @foreach($categories as $cat)
-                                    <option value="{{ $cat->id }}" {{ old('category_id') == $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
+                                    <option value="{{ $cat->id }}" {{ old('category_id')==$cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
                                 @endforeach
                             </select>
                             @if($categories->isEmpty())
-                                <p class="mt-1 text-xs text-red-500">No categories found. Run <code>php artisan db:seed</code> first.</p>
+                                <p style="margin-top:4px;font-size:.72rem;color:#f87171;">No categories found. Run <code>php artisan db:seed</code> first.</p>
                             @endif
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Location <span class="text-red-500">*</span></label>
-                            <select name="location_id" required class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <label style="display:block;font-size:.8rem;font-weight:600;color:#94a3b8;margin-bottom:6px;">
+                                Location <span style="color:#f87171;">*</span>
+                            </label>
+                            <select name="location_id" required
+                                    style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:10px;color:#f1f5f9;font-size:.875rem;font-family:inherit;outline:none;transition:all .15s;"
+                                    onfocus="this.style.borderColor='rgba(16,185,129,.5)';" onblur="this.style.borderColor='rgba(255,255,255,.09)';">
                                 <option value="">Select Location</option>
                                 @foreach($locations as $loc)
-                                    <option value="{{ $loc->id }}" {{ old('location_id') == $loc->id ? 'selected' : '' }}>{{ $loc->name }}</option>
+                                    <option value="{{ $loc->id }}" {{ old('location_id')==$loc->id ? 'selected' : '' }}>{{ $loc->name }}</option>
                                 @endforeach
                             </select>
                         </div>
+                    </div>
+
+                    <!-- 2-col row: Purchase Date + Purchase Cost -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Purchase Date <span class="text-red-500">*</span></label>
+                            <label style="display:block;font-size:.8rem;font-weight:600;color:#94a3b8;margin-bottom:6px;">
+                                Purchase Date <span style="color:#f87171;">*</span>
+                            </label>
                             <input type="date" name="purchase_date" required value="{{ old('purchase_date') }}"
-                                class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                   style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:10px;color:#f1f5f9;font-size:.875rem;font-family:inherit;outline:none;transition:all .15s;color-scheme:dark;"
+                                   onfocus="this.style.borderColor='rgba(16,185,129,.5)';this.style.boxShadow='0 0 0 3px rgba(16,185,129,.08)';"
+                                   onblur="this.style.borderColor='rgba(255,255,255,.09)';this.style.boxShadow='none';">
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Purchase Cost <span class="text-red-500">*</span></label>
+                            <label style="display:block;font-size:.8rem;font-weight:600;color:#94a3b8;margin-bottom:6px;">
+                                Purchase Cost <span style="color:#f87171;">*</span>
+                            </label>
                             <input type="number" name="purchase_cost" required min="0" step="0.01" value="{{ old('purchase_cost') }}"
-                                placeholder="0.00"
-                                class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Manufacturer</label>
-                            <input type="text" name="manufacturer" value="{{ old('manufacturer') }}"
-                                class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Warranty Expiry</label>
-                            <input type="date" name="warranty_expiry" value="{{ old('warranty_expiry') }}"
-                                class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                   placeholder="0.00"
+                                   style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:10px;color:#f1f5f9;font-size:.875rem;font-family:inherit;outline:none;transition:all .15s;"
+                                   onfocus="this.style.borderColor='rgba(16,185,129,.5)';this.style.boxShadow='0 0 0 3px rgba(16,185,129,.08)';"
+                                   onblur="this.style.borderColor='rgba(255,255,255,.09)';this.style.boxShadow='none';">
                         </div>
                     </div>
+
+                    <!-- 2-col row: Manufacturer + Warranty Expiry -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div>
+                            <label style="display:block;font-size:.8rem;font-weight:600;color:#94a3b8;margin-bottom:6px;">Manufacturer</label>
+                            <input type="text" name="manufacturer" value="{{ old('manufacturer') }}"
+                                   placeholder="e.g. Siemens"
+                                   style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:10px;color:#f1f5f9;font-size:.875rem;font-family:inherit;outline:none;transition:all .15s;"
+                                   onfocus="this.style.borderColor='rgba(16,185,129,.5)';this.style.boxShadow='0 0 0 3px rgba(16,185,129,.08)';"
+                                   onblur="this.style.borderColor='rgba(255,255,255,.09)';this.style.boxShadow='none';">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:.8rem;font-weight:600;color:#94a3b8;margin-bottom:6px;">Warranty Expiry</label>
+                            <input type="date" name="warranty_expiry" value="{{ old('warranty_expiry') }}"
+                                   style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:10px;color:#f1f5f9;font-size:.875rem;font-family:inherit;outline:none;transition:all .15s;color-scheme:dark;"
+                                   onfocus="this.style.borderColor='rgba(16,185,129,.5)';this.style.boxShadow='0 0 0 3px rgba(16,185,129,.08)';"
+                                   onblur="this.style.borderColor='rgba(255,255,255,.09)';this.style.boxShadow='none';">
+                        </div>
+                    </div>
+
                 </div>
             </form>
             </div>
+
             <!-- Modal Footer -->
-            <div class="flex space-x-3 p-6 border-t border-gray-200">
-                <button type="button" @click="showNewAssetModal = false" class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-all">
+            <div style="display:flex;gap:10px;padding:18px 24px;border-top:1px solid rgba(255,255,255,.07);">
+                <button type="button" @click="showNewAssetModal = false"
+                        style="flex:1;padding:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:10px;color:#94a3b8;font-size:.875rem;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;"
+                        onmouseover="this.style.background='rgba(255,255,255,.09)';this.style.color='#f1f5f9';"
+                        onmouseout="this.style.background='rgba(255,255,255,.05)';this.style.color='#94a3b8';">
                     Cancel
                 </button>
-                <button type="submit" form="newAssetForm" class="flex-1 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-medium hover:shadow-lg transition-all">
+                <button type="submit" form="newAssetForm"
+                        style="flex:1;padding:10px;background:linear-gradient(135deg,#059669,#10b981);border:none;border-radius:10px;color:#fff;font-size:.875rem;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 0 20px rgba(16,185,129,.25);transition:all .2s;"
+                        onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 0 28px rgba(16,185,129,.4)';"
+                        onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 0 20px rgba(16,185,129,.25)';">
                     Create Asset
                 </button>
             </div>
