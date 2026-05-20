@@ -15,6 +15,7 @@ use App\Models\UserRole;
 use App\Services\InventoryService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -1066,5 +1067,241 @@ class InventoryController extends Controller
         }
 
         return $recommendations;
+    }
+
+    /**
+     * Return full details for a single inventory item (AJAX).
+     */
+    public function getItemDetails(string $itemId): JsonResponse
+    {
+        try {
+            $part = Part::with(['category', 'supplier'])->findOrFail($itemId);
+
+            $recentTransactions = $part->inventoryTransactions()
+                ->orderByDesc('performed_at')
+                ->limit(5)
+                ->get()
+                ->map(function ($t) {
+                    $type = $t->transaction_type instanceof \BackedEnum
+                        ? $t->transaction_type->value
+                        : (string) $t->transaction_type;
+                    return [
+                        'type'     => $type,
+                        'quantity' => (float) $t->getRawOriginal('quantity'),
+                        'date'     => $t->performed_at?->format('Y-m-d') ?? 'N/A',
+                        'notes'    => $t->notes ?? '',
+                    ];
+                });
+
+            $stock        = (float) ($part->getRawOriginal('current_stock') ?? 0);
+            $reorderPoint = (float) ($part->getRawOriginal('reorder_point') ?? 0);
+            $unitCost     = (float) ($part->getRawOriginal('unit_cost') ?? $part->getRawOriginal('average_cost') ?? 0);
+
+            $status = match (true) {
+                $stock <= 0                                    => 'OUT_OF_STOCK',
+                $reorderPoint > 0 && $stock <= $reorderPoint  => 'LOW_STOCK',
+                default                                        => 'IN_STOCK',
+            };
+
+            return response()->json([
+                'success'     => true,
+                'id'          => $part->part_number ?? ('INV-' . strtoupper(substr($part->id, 0, 6))),
+                'uuid'        => $part->id,
+                'name'        => $part->name,
+                'description' => $part->description ?? '',
+                'category'    => $part->category?->name ?? 'Uncategorized',
+                'sku'         => $part->part_number ?? 'N/A',
+                'quantity'    => (int) $stock,
+                'minStock'    => (int)(float)($part->getRawOriginal('minimum_stock') ?? 0),
+                'maxStock'    => (int)(float)($part->getRawOriginal('maximum_stock') ?? 0),
+                'reorderPoint'=> (int) $reorderPoint,
+                'unitCost'    => round($unitCost, 2),
+                'avgCost'     => round((float)($part->getRawOriginal('average_cost') ?? 0), 2),
+                'totalValue'  => round($stock * $unitCost, 2),
+                'supplier'    => $part->supplier?->name ?? 'N/A',
+                'location'    => $part->storage_location ?? $part->bin_location ?? 'N/A',
+                'unitOfMeasure' => $part->unit_of_measure ?? 'unit',
+                'leadTimeDays'  => $part->lead_time_days ?? 0,
+                'notes'         => $part->notes ?? '',
+                'status'        => $status,
+                'lastRestocked' => $part->updated_at?->format('Y-m-d') ?? 'N/A',
+                'recentTransactions' => $recentTransactions,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Create a new inventory item (Manager+).
+     */
+    public function createItem(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'name'             => 'required|string|max:255',
+            'part_number'      => 'nullable|string|max:100|unique:parts,part_number',
+            'category_id'      => 'nullable|string|exists:part_categories,id',
+            'supplier_id'      => 'nullable|string|exists:suppliers,id',
+            'unit_of_measure'  => 'nullable|string|max:50',
+            'current_stock'    => 'nullable|numeric|min:0',
+            'minimum_stock'    => 'nullable|numeric|min:0',
+            'reorder_point'    => 'nullable|numeric|min:0',
+            'unit_cost'        => 'nullable|numeric|min:0',
+            'storage_location' => 'nullable|string|max:255',
+            'description'      => 'nullable|string|max:1000',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => 'Validation failed', 'errors' => $validator->errors()], 422);
+        }
+
+        try {
+            $data = array_filter($validator->validated(), fn($v) => !is_null($v));
+            $data['created_by'] = auth()->id();
+            $data['updated_by'] = auth()->id();
+            $data['is_active']  = true;
+
+            $part = Part::create($data);
+            $part->load(['category', 'supplier']);
+
+            $stock        = (float) ($part->getRawOriginal('current_stock') ?? 0);
+            $reorderPoint = (float) ($part->getRawOriginal('reorder_point') ?? 0);
+            $unitCost     = (float) ($part->getRawOriginal('unit_cost') ?? 0);
+
+            $status = match (true) {
+                $stock <= 0                                    => 'OUT_OF_STOCK',
+                $reorderPoint > 0 && $stock <= $reorderPoint  => 'LOW_STOCK',
+                default                                        => 'IN_STOCK',
+            };
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Item created successfully',
+                'item'    => [
+                    'id'           => $part->part_number ?? ('INV-' . strtoupper(substr($part->id, 0, 6))),
+                    'uuid'         => $part->id,
+                    'name'         => $part->name,
+                    'category'     => $part->category?->name ?? 'Uncategorized',
+                    'sku'          => $part->part_number ?? 'N/A',
+                    'quantity'     => (int) $stock,
+                    'minStock'     => (int)(float)($part->getRawOriginal('minimum_stock') ?? 0),
+                    'maxStock'     => (int)(float)($part->getRawOriginal('maximum_stock') ?? 0),
+                    'unitPrice'    => round($unitCost, 2),
+                    'totalValue'   => round($stock * $unitCost, 2),
+                    'supplier'     => $part->supplier?->name ?? 'N/A',
+                    'location'     => $part->storage_location ?? 'N/A',
+                    'status'       => $status,
+                    'lastRestocked'=> $part->updated_at?->format('Y-m-d') ?? 'N/A',
+                    'reorderLevel' => (int) $reorderPoint,
+                ],
+            ], 201);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Stream a CSV export of all inventory items (Auditor+).
+     */
+    public function exportInventory(Request $request): StreamedResponse
+    {
+        $filename = 'inventory_export_' . now()->format('Y-m-d_His') . '.csv';
+
+        return response()->streamDownload(function () {
+            $handle = fopen('php://output', 'w');
+
+            fputcsv($handle, [
+                'Item ID', 'Name', 'Category', 'SKU', 'Quantity',
+                'Min Stock', 'Reorder Point', 'Unit Cost (UGX)',
+                'Total Value (UGX)', 'Supplier', 'Location', 'Status', 'Last Updated',
+            ]);
+
+            Part::with(['category', 'supplier'])->orderBy('name')->chunk(200, function ($parts) use ($handle) {
+                foreach ($parts as $part) {
+                    $stock        = (float) ($part->getRawOriginal('current_stock') ?? 0);
+                    $reorderPoint = (float) ($part->getRawOriginal('reorder_point') ?? 0);
+                    $minStock     = (float) ($part->getRawOriginal('minimum_stock') ?? 0);
+                    $unitCost     = (float) ($part->getRawOriginal('unit_cost') ?? $part->getRawOriginal('average_cost') ?? 0);
+
+                    $status = match (true) {
+                        $stock <= 0                                    => 'OUT_OF_STOCK',
+                        $reorderPoint > 0 && $stock <= $reorderPoint  => 'LOW_STOCK',
+                        default                                        => 'IN_STOCK',
+                    };
+
+                    fputcsv($handle, [
+                        $part->part_number ?? ('INV-' . strtoupper(substr($part->id, 0, 6))),
+                        $part->name,
+                        $part->category?->name ?? 'Uncategorized',
+                        $part->part_number ?? 'N/A',
+                        (int) $stock,
+                        (int) $minStock,
+                        (int) $reorderPoint,
+                        round($unitCost, 2),
+                        round($stock * $unitCost, 2),
+                        $part->supplier?->name ?? 'N/A',
+                        $part->storage_location ?? $part->bin_location ?? 'N/A',
+                        $status,
+                        $part->updated_at?->format('Y-m-d') ?? 'N/A',
+                    ]);
+                }
+            });
+
+            fclose($handle);
+        }, $filename, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
+    }
+
+    /**
+     * Generate a summary inventory report (Auditor+).
+     */
+    public function generateReport(): JsonResponse
+    {
+        try {
+            $stats = $this->getInventoryStats();
+
+            $topItems = Part::with(['category'])
+                ->selectRaw('*, (current_stock * COALESCE(average_cost, unit_cost, 0)) as computed_value')
+                ->orderByRaw('(current_stock * COALESCE(average_cost, unit_cost, 0)) DESC')
+                ->limit(10)
+                ->get()
+                ->map(function ($part) {
+                    return [
+                        'name'       => $part->name,
+                        'sku'        => $part->part_number ?? 'N/A',
+                        'category'   => $part->category?->name ?? 'Uncategorized',
+                        'quantity'   => (int)(float)($part->getRawOriginal('current_stock') ?? 0),
+                        'totalValue' => round(
+                            (float)($part->getRawOriginal('current_stock') ?? 0) *
+                            (float)($part->getRawOriginal('average_cost') ?? $part->getRawOriginal('unit_cost') ?? 0),
+                            2
+                        ),
+                    ];
+                });
+
+            $lowStockItems = Part::whereNotNull('reorder_point')
+                ->whereRaw('current_stock > 0 AND current_stock <= reorder_point')
+                ->orderBy('current_stock')
+                ->limit(10)
+                ->get(['name', 'part_number', 'current_stock', 'reorder_point'])
+                ->map(fn($p) => [
+                    'name'    => $p->name,
+                    'sku'     => $p->part_number ?? 'N/A',
+                    'current' => (int)(float)($p->getRawOriginal('current_stock') ?? 0),
+                    'reorder' => (int)(float)($p->getRawOriginal('reorder_point') ?? 0),
+                ]);
+
+            return response()->json([
+                'success'        => true,
+                'generated_at'   => now()->format('Y-m-d H:i:s'),
+                'stats'          => $stats,
+                'top_value_items'=> $topItems,
+                'low_stock_items'=> $lowStockItems,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
     }
 }

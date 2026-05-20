@@ -22,7 +22,7 @@
                 </button>
                 
                 <!-- Export CSV Button -->
-                <button onclick="exportInventory()" class="px-4 py-2 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-sm font-medium text-gray-900 hover:bg-white/30 transition-all duration-200 flex items-center">
+                <button @click="triggerExport()" class="px-4 py-2 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-sm font-medium text-gray-900 hover:bg-white/30 transition-all duration-200 flex items-center">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                     </svg>
@@ -30,7 +30,7 @@
                 </button>
                 
                 <!-- New Item Button -->
-                <button class="px-4 py-2 bg-gradient-to-r from-gray-900 to-black text-white rounded-xl font-medium shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center">
+                <button @click="showNewItemModal = true" class="px-4 py-2 bg-gradient-to-r from-gray-900 to-black text-white rounded-xl font-medium shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                     </svg>
@@ -215,7 +215,7 @@
                                         </svg>
                                     </button>
                                     <div x-show="dropdownOpen" @click.away="dropdownOpen = false" x-transition class="absolute right-0 mt-1 w-48 glass-card z-50">
-                                        <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-white/50">View Details</a>
+                                        <a href="#" @click.prevent="openDetailsModal(item); dropdownOpen = false" class="block px-4 py-2 text-sm text-gray-700 hover:bg-white/50">View Details</a>
                                         <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-white/50">Edit Item</a>
                                         <a href="#" @click.prevent="openStockModal(item); dropdownOpen = false" class="block px-4 py-2 text-sm text-gray-700 hover:bg-white/50">Update Stock</a>
                                         <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-white/50">Order More</a>
@@ -360,6 +360,200 @@
         </div>
     </div>
 
+    <!-- ── NEW ITEM MODAL ────────────────────────────────────────────── -->
+    <div x-show="showNewItemModal" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center p-4" style="display:none;">
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="showNewItemModal = false"></div>
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" @click.stop>
+            <div class="flex items-center justify-between p-6 border-b border-gray-100">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900">Add New Inventory Item</h3>
+                    <p class="text-sm text-gray-500 mt-0.5">Create a new spare part or supply record</p>
+                </div>
+                <button @click="showNewItemModal = false" class="p-2 rounded-xl hover:bg-gray-100 transition-colors">
+                    <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="p-6 space-y-5">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="sm:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Item Name <span class="text-red-500">*</span></label>
+                        <input type="text" x-model="newItemForm.name" placeholder="e.g. Hydraulic Filter #A200"
+                               class="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Part Number / SKU</label>
+                        <input type="text" x-model="newItemForm.part_number" placeholder="e.g. HYD-A200"
+                               class="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Unit of Measure</label>
+                        <input type="text" x-model="newItemForm.unit_of_measure" placeholder="e.g. units, litres, kg"
+                               class="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                        <select x-model="newItemForm.category_id" class="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                            <option value="">— Select category —</option>
+                            @foreach($categories as $cat)
+                                <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+                        <select x-model="newItemForm.supplier_id" class="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                            <option value="">— Select supplier —</option>
+                            @foreach($suppliers as $sup)
+                                <option value="{{ $sup->id }}">{{ $sup->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Initial Stock Qty</label>
+                        <input type="number" x-model="newItemForm.current_stock" min="0" placeholder="0"
+                               class="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Minimum Stock</label>
+                        <input type="number" x-model="newItemForm.minimum_stock" min="0" placeholder="0"
+                               class="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Reorder Point</label>
+                        <input type="number" x-model="newItemForm.reorder_point" min="0" placeholder="0"
+                               class="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Unit Cost (UGX)</label>
+                        <input type="number" x-model="newItemForm.unit_cost" min="0" step="0.01" placeholder="0.00"
+                               class="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Storage Location</label>
+                        <input type="text" x-model="newItemForm.storage_location" placeholder="e.g. Warehouse A, Shelf 3"
+                               class="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <textarea x-model="newItemForm.description" rows="2" placeholder="Optional description..."
+                                  class="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"></textarea>
+                    </div>
+                </div>
+                <div x-show="newItemError" class="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700" x-text="newItemError"></div>
+                <div x-show="newItemSuccess" class="p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700" x-text="newItemSuccess"></div>
+            </div>
+            <div class="flex items-center justify-end space-x-3 px-6 pb-6">
+                <button @click="showNewItemModal = false" class="px-4 py-2 text-sm text-gray-700 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">Cancel</button>
+                <button @click="submitNewItem()" :disabled="newItemLoading"
+                        class="px-5 py-2 bg-gradient-to-r from-gray-900 to-black text-white text-sm font-medium rounded-xl hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center">
+                    <svg x-show="newItemLoading" class="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    <span x-text="newItemLoading ? 'Saving...' : 'Create Item'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── VIEW DETAILS MODAL ─────────────────────────────────────────── -->
+    <div x-show="showDetailsModal" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center p-4" style="display:none;">
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="showDetailsModal = false"></div>
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" @click.stop>
+            <div class="flex items-center justify-between p-6 border-b border-gray-100">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900" x-text="detailsItem ? detailsItem.name : 'Item Details'"></h3>
+                    <p class="text-sm text-gray-500 mt-0.5" x-text="detailsItem ? 'SKU: ' + detailsItem.sku : ''"></p>
+                </div>
+                <button @click="showDetailsModal = false" class="p-2 rounded-xl hover:bg-gray-100 transition-colors">
+                    <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <template x-if="detailsLoading">
+                <div class="flex items-center justify-center py-16">
+                    <svg class="w-8 h-8 animate-spin text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                </div>
+            </template>
+            <template x-if="!detailsLoading && detailsItem">
+                <div class="p-6 space-y-6">
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                        <div class="bg-gray-50 rounded-xl p-3">
+                            <p class="text-xs text-gray-500 mb-1">Current Stock</p>
+                            <p class="text-xl font-bold text-gray-900" x-text="detailsItem.quantity"></p>
+                            <p class="text-xs text-gray-500" x-text="detailsItem.unitOfMeasure"></p>
+                        </div>
+                        <div class="bg-gray-50 rounded-xl p-3">
+                            <p class="text-xs text-gray-500 mb-1">Unit Cost</p>
+                            <p class="text-xl font-bold text-gray-900" x-text="'UGX ' + detailsItem.unitCost.toFixed(2)"></p>
+                        </div>
+                        <div class="bg-gray-50 rounded-xl p-3">
+                            <p class="text-xs text-gray-500 mb-1">Total Value</p>
+                            <p class="text-xl font-bold text-gray-900" x-text="'UGX ' + detailsItem.totalValue.toFixed(2)"></p>
+                        </div>
+                        <div class="bg-gray-50 rounded-xl p-3">
+                            <p class="text-xs text-gray-500 mb-1">Min Stock</p>
+                            <p class="text-lg font-semibold text-gray-900" x-text="detailsItem.minStock"></p>
+                        </div>
+                        <div class="bg-gray-50 rounded-xl p-3">
+                            <p class="text-xs text-gray-500 mb-1">Reorder Point</p>
+                            <p class="text-lg font-semibold text-gray-900" x-text="detailsItem.reorderPoint"></p>
+                        </div>
+                        <div class="bg-gray-50 rounded-xl p-3">
+                            <p class="text-xs text-gray-500 mb-1">Lead Time</p>
+                            <p class="text-lg font-semibold text-gray-900" x-text="detailsItem.leadTimeDays + ' days'"></p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                        <div><span class="text-gray-500">Category:</span> <span class="font-medium text-gray-900 ml-1" x-text="detailsItem.category"></span></div>
+                        <div><span class="text-gray-500">Supplier:</span> <span class="font-medium text-gray-900 ml-1" x-text="detailsItem.supplier"></span></div>
+                        <div><span class="text-gray-500">Location:</span> <span class="font-medium text-gray-900 ml-1" x-text="detailsItem.location"></span></div>
+                        <div><span class="text-gray-500">Last Updated:</span> <span class="font-medium text-gray-900 ml-1" x-text="detailsItem.lastRestocked"></span></div>
+                        <div><span class="text-gray-500">Avg Cost:</span> <span class="font-medium text-gray-900 ml-1" x-text="'UGX ' + detailsItem.avgCost.toFixed(2)"></span></div>
+                        <div>
+                            <span class="text-gray-500">Status:</span>
+                            <span class="ml-1 px-2 py-0.5 text-xs font-medium rounded-full"
+                                  :class="detailsItem.status === 'IN_STOCK' ? 'bg-green-100 text-green-700' : detailsItem.status === 'LOW_STOCK' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'"
+                                  x-text="detailsItem.status.replace('_',' ')"></span>
+                        </div>
+                    </div>
+                    <template x-if="detailsItem.description">
+                        <div>
+                            <p class="text-xs font-medium text-gray-500 mb-1">Description</p>
+                            <p class="text-sm text-gray-700" x-text="detailsItem.description"></p>
+                        </div>
+                    </template>
+                    <div>
+                        <p class="text-sm font-semibold text-gray-900 mb-3">Recent Transactions</p>
+                        <template x-if="detailsItem.recentTransactions.length === 0">
+                            <p class="text-sm text-gray-400 italic">No transactions recorded yet.</p>
+                        </template>
+                        <template x-if="detailsItem.recentTransactions.length > 0">
+                            <div class="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
+                                <template x-for="tx in detailsItem.recentTransactions" :key="tx.date + tx.type">
+                                    <div class="flex items-center justify-between px-4 py-2.5 bg-white hover:bg-gray-50">
+                                        <div class="flex items-center space-x-3">
+                                            <span class="px-2 py-0.5 text-xs font-medium rounded-full capitalize"
+                                                  :class="tx.quantity >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'"
+                                                  x-text="tx.type"></span>
+                                            <span class="text-xs text-gray-500" x-text="tx.date"></span>
+                                        </div>
+                                        <span class="text-sm font-semibold"
+                                              :class="tx.quantity >= 0 ? 'text-green-700' : 'text-red-600'"
+                                              x-text="(tx.quantity >= 0 ? '+' : '') + tx.quantity"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+            <div class="flex justify-end px-6 pb-6">
+                <button @click="showDetailsModal = false" class="px-4 py-2 text-sm text-gray-700 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">Close</button>
+            </div>
+        </div>
+    </div>
+
 </div>
 @endsection
 
@@ -381,6 +575,16 @@ function inventoryManagement() {
         stockLoading: false,
         stockError: '',
         stockSuccess: '',
+
+        showNewItemModal: false,
+        newItemForm: { name: '', part_number: '', category_id: '', supplier_id: '', unit_of_measure: '', current_stock: '', minimum_stock: '', reorder_point: '', unit_cost: '', storage_location: '', description: '' },
+        newItemLoading: false,
+        newItemError: '',
+        newItemSuccess: '',
+
+        showDetailsModal: false,
+        detailsItem: null,
+        detailsLoading: false,
 
         get filteredItems() {
             if (!this.searchQuery) return this.items;
@@ -619,7 +823,7 @@ function inventoryManagement() {
                 data: {
                     labels: this.analytics.monthlyUsage.labels,
                     datasets: [{
-                        label: 'Usage Value ($)',
+                        label: 'Usage Value (UGX)',
                         data: this.analytics.monthlyUsage.data,
                         backgroundColor: usageGradient,
                         borderColor: 'rgba(245, 158, 11, 1)',
@@ -639,7 +843,7 @@ function inventoryManagement() {
                             grid: { color: 'rgba(255, 255, 255, 0.1)' },
                             ticks: { 
                                 color: '#6B7280',
-                                callback: value => '$' + value.toLocaleString()
+                                callback: value => 'UGX ' + value.toLocaleString()
                             }
                         },
                         x: {
@@ -649,13 +853,82 @@ function inventoryManagement() {
                     }
                 }
             });
-        }
-    }
-}
+        },
 
-function exportInventory() {
-    // In a real application, this would trigger a download
-    alert('Export functionality would download a CSV file with all inventory data');
+        triggerExport() {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '{{ route('inventory.export') }}';
+            const csrf = document.createElement('input');
+            csrf.type = 'hidden'; csrf.name = '_token'; csrf.value = '{{ csrf_token() }}';
+            form.appendChild(csrf);
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+        },
+
+        async openDetailsModal(item) {
+            this.detailsItem = null;
+            this.detailsLoading = true;
+            this.showDetailsModal = true;
+            try {
+                const res = await fetch(`/inventory/${item.uuid}/details`, {
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.detailsItem = data;
+                } else {
+                    this.showDetailsModal = false;
+                    alert('Could not load item details.');
+                }
+            } catch (e) {
+                this.showDetailsModal = false;
+                alert('Network error loading details.');
+            } finally {
+                this.detailsLoading = false;
+            }
+        },
+
+        async submitNewItem() {
+            if (!this.newItemForm.name.trim()) {
+                this.newItemError = 'Item name is required.';
+                return;
+            }
+            this.newItemLoading = true;
+            this.newItemError = '';
+            this.newItemSuccess = '';
+            try {
+                const payload = {};
+                Object.entries(this.newItemForm).forEach(([k, v]) => { if (v !== '' && v !== null) payload[k] = v; });
+                const res = await fetch('{{ route('inventory.create-item') }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+                    body: JSON.stringify(payload),
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.items.unshift(data.item);
+                    this.stats.totalItems = this.items.length;
+                    this.stats.outOfStock = this.items.filter(i => i.status === 'OUT_OF_STOCK').length;
+                    this.stats.lowStock   = this.items.filter(i => i.status === 'LOW_STOCK').length;
+                    this.stats.totalValue = parseFloat(this.items.reduce((s, i) => s + (i.totalValue || 0), 0).toFixed(2));
+                    this.newItemSuccess = 'Item created successfully!';
+                    this.newItemForm = { name: '', part_number: '', category_id: '', supplier_id: '', unit_of_measure: '', current_stock: '', minimum_stock: '', reorder_point: '', unit_cost: '', storage_location: '', description: '' };
+                    setTimeout(() => { this.showNewItemModal = false; this.newItemSuccess = ''; }, 1500);
+                } else {
+                    this.newItemError = data.message || 'Failed to create item.';
+                    if (data.errors) {
+                        this.newItemError = Object.values(data.errors).flat().join(' ');
+                    }
+                }
+            } catch (e) {
+                this.newItemError = 'Network error: ' + e.message;
+            } finally {
+                this.newItemLoading = false;
+            }
+        },
+    };
 }
 </script>
 @endpush
