@@ -21,6 +21,53 @@
     </div>
 
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <!-- Company Code & Team Approval Alert -->
+        <div class="grid md:grid-cols-2 gap-6 mb-8">
+            <!-- Company Code Card -->
+            <div class="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg p-6 text-white shadow-lg">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-blue-100 text-sm mb-1">Company Code (Share with team)</p>
+                        <h2 class="text-2xl font-mono font-bold tracking-wider">{{ $organization->code ?? 'N/A' }}</h2>
+                    </div>
+                    <button onclick="navigator.clipboard.writeText('{{ $organization->code }}')" 
+                        class="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition">
+                        Copy
+                    </button>
+                </div>
+            </div>
+
+            <!-- Team Approvals Alert -->
+            @if($pendingUserApprovals > 0)
+            <a href="{{ route('admin.approvals') }}" class="block bg-gradient-to-r from-amber-500 to-orange-500 rounded-lg p-6 text-white shadow-lg hover:shadow-xl transition">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-white/80 text-sm mb-1">Pending Team Approvals</p>
+                        <h2 class="text-3xl font-bold">{{ $pendingUserApprovals }}</h2>
+                        <p class="text-white/80 text-xs mt-1">Awaiting your review</p>
+                    </div>
+                    <div class="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
+                        </svg>
+                    </div>
+                </div>
+            </a>
+            @else
+            <div class="bg-white rounded-lg p-6 shadow-md border border-gray-200">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm mb-1">Team Status</p>
+                        <h2 class="text-xl font-semibold text-gray-900">No pending approvals</h2>
+                    </div>
+                    <a href="{{ route('admin.approvals') }}" class="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                        Manage Team →
+                    </a>
+                </div>
+            </div>
+            @endif
+        </div>
+
         <!-- Key Metrics Row -->
         <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
             <!-- Total Assets Card -->
@@ -213,15 +260,37 @@
                     </div>
                 </div>
 
+                <!-- Condition Reports Alert -->
+                @if($unreviewedReports > 0)
+                <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl font-bold text-red-600">{{ $unreviewedReports }}</span>
+                        <div>
+                            <p class="text-sm font-semibold text-red-800">Unreviewed Reports</p>
+                            <p class="text-xs text-red-600">Staff have reported asset issues</p>
+                        </div>
+                    </div>
+                    <a href="{{ route('ceo.reports') }}" class="mt-3 block w-full py-2 px-4 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition text-center">
+                        Review Now →
+                    </a>
+                </div>
+                @endif
+
                 <!-- Quick Actions -->
                 <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6 border border-blue-200">
                     <h3 class="font-semibold text-gray-900 mb-4">Quick Actions</h3>
                     <div class="space-y-2">
-                        <a href="{{ route('executive.approvals') }}" class="block w-full py-2 px-4 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition text-center">
-                            Review Requests
+                        <a href="{{ route('ceo.inventory') }}" class="block w-full py-2 px-4 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition text-center">
+                            📦 Manage Inventory
                         </a>
-                        <a href="{{ route('assets.index') }}" class="block w-full py-2 px-4 bg-white text-blue-600 text-sm font-medium rounded-lg border border-blue-200 hover:bg-blue-50 transition text-center">
-                            View All Assets
+                        <a href="{{ route('ceo.requests') }}" class="block w-full py-2 px-4 bg-white text-blue-700 text-sm font-medium rounded-lg border border-blue-300 hover:bg-blue-50 transition text-center">
+                            📋 Staff Requests
+                            @if(($requestStats['pending'] ?? 0) > 0)
+                                <span class="ml-1 bg-yellow-400 text-yellow-900 text-xs font-bold px-1.5 py-0.5 rounded-full">{{ $requestStats['pending'] }}</span>
+                            @endif
+                        </a>
+                        <a href="{{ route('ceo.reports') }}" class="block w-full py-2 px-4 bg-white text-red-600 text-sm font-medium rounded-lg border border-red-200 hover:bg-red-50 transition text-center">
+                            🔧 Condition Reports
                         </a>
                     </div>
                 </div>

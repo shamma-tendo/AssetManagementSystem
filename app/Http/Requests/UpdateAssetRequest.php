@@ -2,13 +2,27 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Location;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Str;
 
 class UpdateAssetRequest extends FormRequest
 {
     public function authorize(): bool
     {
         return true;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $locationId = $this->input('location_id');
+
+        if ($locationId && !Str::isUuid($locationId)) {
+            $name = trim($locationId);
+            $loc  = Location::whereRaw('LOWER(name) = ?', [strtolower($name)])->first()
+                 ?? Location::create(['name' => $name, 'address' => $name]);
+            $this->merge(['location_id' => $loc->id]);
+        }
     }
 
     public function rules(): array

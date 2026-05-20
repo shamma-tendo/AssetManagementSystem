@@ -17,9 +17,12 @@ class Organization extends Model
 
     protected $fillable = [
         'name',
+        'slug', // URL-friendly identifier
+        'code', // unique company code for joining (e.g., HOSP-4821)
         'email',
         'type', // company or household
         'industry_type', // generic, hospital, school, retail, manufacturing, corporate, household
+        'size',
         'phone',
         'address',
         'city',
@@ -30,6 +33,7 @@ class Organization extends Model
         'logo_path',
         'subscription_plan',
         'is_active',
+        'status',
         'next_of_kin_name',
         'next_of_kin_phone',
         'next_of_kin_email',

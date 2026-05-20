@@ -45,6 +45,9 @@
         </form>
         <p class="text-xs text-slate-500 text-center mt-6">
             <a href="{{ route('welcome') }}" class="text-blue-600 hover:underline">Change lens</a>
+            @if($tenant_type === 'household')
+                · <a href="{{ route('household.register') }}" class="text-blue-600 hover:underline">Create account</a>
+            @endif
             · Demo: admin@aems.local / password
         </p>
     </div>

@@ -23,14 +23,14 @@ class AssetManagerDashboardController extends Controller
     /**
      * Show the asset manager dashboard
      */
-    public function index(): View
+    public function index()
     {
         $user = auth()->user();
         $organization = $user->organization;
 
-        // Ensure user is asset manager
+        // Redirect to appropriate dashboard if not asset manager
         if (!$user->isAssetManager()) {
-            abort(403, 'Unauthorized access');
+            return redirect()->route($user->getDashboardRoute());
         }
 
         // My requests
@@ -74,11 +74,11 @@ class AssetManagerDashboardController extends Controller
                 ->count(),
             'active' => AssetAssignment::where('organization_id', $organization->id)
                 ->where('assigned_by', $user->id)
-                ->where('status', 'active')
+                ->whereIn('status', ['assigned', 'in_use'])
                 ->count(),
             'returned' => AssetAssignment::where('organization_id', $organization->id)
                 ->where('assigned_by', $user->id)
-                ->where('status', 'returned')
+                ->whereIn('status', ['returned', 'lost', 'damaged'])
                 ->count(),
         ];
 
@@ -104,13 +104,13 @@ class AssetManagerDashboardController extends Controller
     /**
      * Show asset request creation wizard
      */
-    public function createRequest(): View
+    public function createRequest()
     {
         $user = auth()->user();
         $organization = $user->organization;
 
         if (!$user->isAssetManager()) {
-            abort(403);
+            return redirect()->route($user->getDashboardRoute());
         }
 
         $categories = \App\Models\Category::all();
@@ -125,13 +125,13 @@ class AssetManagerDashboardController extends Controller
     /**
      * Show asset distribution interface
      */
-    public function distributeAssets(): View
+    public function distributeAssets()
     {
         $user = auth()->user();
         $organization = $user->organization;
 
         if (!$user->isAssetManager()) {
-            abort(403);
+            return redirect()->route($user->getDashboardRoute());
         }
 
         $undistributedAssets = Asset::query()
@@ -141,7 +141,7 @@ class AssetManagerDashboardController extends Controller
             ->paginate(20);
 
         $staff = $organization->users()
-            ->where('role_id', '!=', null)
+            ->whereNotNull('role_id')
             ->get();
 
         return view('dashboards.asset-distribution', [

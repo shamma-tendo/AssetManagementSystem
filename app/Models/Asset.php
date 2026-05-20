@@ -17,7 +17,7 @@ class Asset extends Model
         'name', 'serial_number', 'model', 'manufacturer', 'category_id', 'location_id',
         'department_id', 'purchase_date', 'purchase_cost', 'current_value', 'salvage_value',
         'useful_life_years', 'status', 'description', 'barcode', 'qr_code', 'rfid_tag',
-        'created_by', 'updated_by'
+        'created_by', 'updated_by', 'organization_id', 'estimated_value'
     ];
 
     protected $keyType = 'string';
@@ -69,11 +69,6 @@ class Asset extends Model
         return $this->hasMany(MaintenanceRecord::class);
     }
 
-    public function inspections(): HasMany
-    {
-        return $this->hasMany(Inspection::class);
-    }
-
     public function depreciationRecords(): HasMany
     {
         return $this->hasMany(DepreciationRecord::class);
@@ -82,5 +77,30 @@ class Asset extends Model
     public function iotReadings(): HasMany
     {
         return $this->hasMany(IotReading::class);
+    }
+
+    public function warranties(): HasMany
+    {
+        return $this->hasMany(AssetWarranty::class);
+    }
+
+    public function insurancePolicies(): HasMany
+    {
+        return $this->hasMany(InsurancePolicy::class);
+    }
+
+    public function documents(): HasMany
+    {
+        return $this->hasMany(AssetDocument::class);
+    }
+
+    public function assignments(): HasMany
+    {
+        return $this->hasMany(AssetAssignment::class);
+    }
+
+    public function currentAssignment(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(AssetAssignment::class)->whereIn('status', ['assigned', 'in_use']);
     }
 }

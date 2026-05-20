@@ -27,6 +27,8 @@ class AssetRequest extends Model
         'estimated_cost',
         'status',
         'approval_notes',
+        'purpose',
+        'use_location',
         'requested_at',
         'reviewed_at',
         'fulfilled_at',

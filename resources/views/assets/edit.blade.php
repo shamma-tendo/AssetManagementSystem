@@ -57,13 +57,13 @@
                 </div>
 
                 <div>
-                    <label for="location_id" class="block text-sm font-medium text-gray-700 mb-2">Location</label>
-                    <select id="location_id" name="location_id" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-                        <option value="">—</option>
-                        @foreach ($locations as $location)
-                            <option value="{{ $location->id }}" @selected(old('location_id', $asset->location_id) === $location->id)>{{ $location->name }}</option>
-                        @endforeach
-                    </select>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Location</label>
+                    @include('components.location-picker', [
+                        'locations'   => $locations,
+                        'fieldName'   => 'location_id',
+                        'oldValue'    => old('location_id', $asset->location_id),
+                        'accentColor' => 'blue',
+                    ])
                 </div>
 
                 <div>

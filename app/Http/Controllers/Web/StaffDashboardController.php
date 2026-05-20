@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\Asset;
 use App\Models\AssetAssignment;
 use App\Models\AssetConditionReport;
+use App\Models\AssetRequest;
 use App\Models\ActivityLog;
 use Illuminate\View\View;
 
@@ -22,20 +24,20 @@ class StaffDashboardController extends Controller
     /**
      * Show the staff dashboard
      */
-    public function index(): View
+    public function index()
     {
         $user = auth()->user();
         $organization = $user->organization;
 
-        // Ensure user is staff
+        // Redirect to appropriate dashboard if not staff
         if (!$user->isStaff()) {
-            abort(403, 'Unauthorized access');
+            return redirect()->route($user->getDashboardRoute());
         }
 
         // My assigned assets
         $myAssets = AssetAssignment::query()
             ->where('assigned_to', $user->id)
-            ->where('status', 'active')
+            ->whereIn('status', ['assigned', 'in_use'])
             ->with('asset', 'asset.category')
             ->orderBy('assigned_at', 'desc')
             ->paginate(10);
@@ -44,10 +46,10 @@ class StaffDashboardController extends Controller
         $myAssetStats = [
             'total_assigned' => AssetAssignment::where('assigned_to', $user->id)->count(),
             'active' => AssetAssignment::where('assigned_to', $user->id)
-                ->where('status', 'active')
+                ->whereIn('status', ['assigned', 'in_use'])
                 ->count(),
             'reported_issues' => AssetConditionReport::where('reported_by', $user->id)
-                ->where('status', 'pending')
+                ->whereNull('reviewed_at')
                 ->count(),
         ];
 
@@ -62,38 +64,53 @@ class StaffDashboardController extends Controller
         // Assignment history
         $assignmentHistory = AssetAssignment::query()
             ->where('assigned_to', $user->id)
-            ->where('status', 'returned')
+            ->whereIn('status', ['returned', 'lost', 'damaged'])
             ->with('asset')
             ->orderBy('returned_at', 'desc')
             ->limit(10)
             ->get();
 
+        // All active assets in the org (CEO's inventory — what staff can see/request)
+        $availableAssets = Asset::where('organization_id', $organization->id)
+            ->where('status', 'Active')
+            ->with('category', 'location')
+            ->orderBy('name')
+            ->get();
+
+        // My asset requests
+        $myRequests = AssetRequest::where('requested_by', $user->id)
+            ->orderByDesc('created_at')
+            ->limit(5)
+            ->get();
+
         return view('dashboards.staff', [
-            'organization' => $organization,
-            'myAssets' => $myAssets,
-            'myAssetStats' => $myAssetStats,
-            'myReports' => $myReports,
+            'organization'      => $organization,
+            'myAssets'          => $myAssets,
+            'myAssetStats'      => $myAssetStats,
+            'myReports'         => $myReports,
             'assignmentHistory' => $assignmentHistory,
+            'availableAssets'   => $availableAssets,
+            'myRequests'        => $myRequests,
         ]);
     }
 
     /**
      * Show asset detail for staff to report issues
      */
-    public function viewAsset($assetId): View
+    public function viewAsset($assetId)
     {
         $user = auth()->user();
         $organization = $user->organization;
 
         if (!$user->isStaff()) {
-            abort(403);
+            return redirect()->route($user->getDashboardRoute());
         }
 
         // Verify this asset is assigned to the user
         $assignment = AssetAssignment::query()
             ->where('assigned_to', $user->id)
             ->where('asset_id', $assetId)
-            ->where('status', 'active')
+            ->whereIn('status', ['assigned', 'in_use'])
             ->firstOrFail();
 
         $asset = $assignment->asset;
@@ -113,18 +130,18 @@ class StaffDashboardController extends Controller
     /**
      * Report asset status/condition
      */
-    public function reportAssetStatus($assetId): View
+    public function reportAssetStatus($assetId)
     {
         $user = auth()->user();
 
         if (!$user->isStaff()) {
-            abort(403);
+            return redirect()->route($user->getDashboardRoute());
         }
 
         $assignment = AssetAssignment::query()
             ->where('assigned_to', $user->id)
             ->where('asset_id', $assetId)
-            ->where('status', 'active')
+            ->whereIn('status', ['assigned', 'in_use'])
             ->firstOrFail();
 
         $asset = $assignment->asset;
@@ -168,5 +185,42 @@ class StaffDashboardController extends Controller
             'assignment' => $assignment,
             'statusOptions' => $statusOptions,
         ]);
+    }
+
+    /**
+     * Submit an asset condition report
+     */
+    public function submitReport(\Illuminate\Http\Request $request, $assetId)
+    {
+        $user = auth()->user();
+
+        if (!$user->isStaff()) {
+            return redirect()->route($user->getDashboardRoute());
+        }
+
+        $request->validate([
+            'condition' => 'required|in:in_use,broken,needs_repair,stolen,lost,not_effective,ready_for_return',
+            'description' => 'nullable|string|max:1000',
+        ]);
+
+        $assignment = AssetAssignment::query()
+            ->where('assigned_to', $user->id)
+            ->where('asset_id', $assetId)
+            ->whereIn('status', ['assigned', 'in_use'])
+            ->firstOrFail();
+
+        AssetConditionReport::create([
+            'asset_assignment_id' => $assignment->id,
+            'asset_id'            => $assetId,
+            'organization_id'     => $user->organization_id,
+            'reported_by'         => $user->id,
+            'condition'           => $request->condition,
+            'description'         => $request->description,
+            'status'              => 'pending',
+            'reported_at'         => now(),
+        ]);
+
+        return redirect()->route('staff.asset.view', $assetId)
+            ->with('success', 'Condition report submitted successfully.');
     }
 }

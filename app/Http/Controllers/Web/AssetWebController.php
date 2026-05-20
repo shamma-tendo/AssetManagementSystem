@@ -39,10 +39,9 @@ class AssetWebController extends Controller
     {
         $asset->load([
             'category', 'location', 'department',
-            'currentAssignment.assignee',
+            'currentAssignment.assignedTo',
             'workOrders' => fn ($q) => $q->latest()->limit(20),
             'maintenanceRecords' => fn ($q) => $q->latest()->limit(20),
-            'inspections' => fn ($q) => $q->latest()->limit(20),
             'depreciationRecords' => fn ($q) => $q->latest('year')->limit(10),
         ]);
 

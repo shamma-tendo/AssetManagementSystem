@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\AssetRequest;
 use App\Models\AssetAssignment;
+use App\Models\AssetConditionReport;
 use App\Models\Asset;
 use App\Models\ActivityLog;
 use Illuminate\View\View;
@@ -23,17 +24,23 @@ class ExecutiveDashboardController extends Controller
     /**
      * Show the executive dashboard
      */
-    public function index(): View
+    public function index()
     {
         $user = auth()->user();
         $organization = $user->organization;
 
-        // Ensure user is executive
+        // Redirect to appropriate dashboard if not executive
         if (!$user->isExecutive()) {
-            abort(403, 'Unauthorized access');
+            return redirect()->route($user->getDashboardRoute());
         }
 
-        // Pending requests awaiting approval
+        // Pending team member approvals (join requests)
+        $pendingUserApprovals = \App\Models\User::where('organization_id', $organization->id)
+            ->where('status', 'pending')
+            ->where('is_approved', false)
+            ->count();
+
+        // Pending asset requests awaiting approval
         $pendingRequests = AssetRequest::query()
             ->where('organization_id', $organization->id)
             ->where('status', 'pending')
@@ -46,16 +53,16 @@ class ExecutiveDashboardController extends Controller
         $assetStats = [
             'total' => Asset::where('organization_id', $organization->id)->count(),
             'active' => Asset::where('organization_id', $organization->id)
-                ->where('status', 'active')
+                ->where('status', 'Active')
                 ->count(),
             'damaged' => Asset::where('organization_id', $organization->id)
-                ->where('status', 'damaged')
+                ->whereIn('status', ['damaged', 'Damaged'])
                 ->count(),
             'stolen' => Asset::where('organization_id', $organization->id)
-                ->where('status', 'stolen')
+                ->whereIn('status', ['stolen', 'Stolen'])
                 ->count(),
             'maintenance' => Asset::where('organization_id', $organization->id)
-                ->where('status', 'maintenance')
+                ->whereIn('status', ['Under Maintenance', 'maintenance'])
                 ->count(),
         ];
 
@@ -71,10 +78,10 @@ class ExecutiveDashboardController extends Controller
         $assignmentStats = [
             'total_assigned' => AssetAssignment::where('organization_id', $organization->id)->count(),
             'active_assignments' => AssetAssignment::where('organization_id', $organization->id)
-                ->where('status', 'active')
+                ->whereIn('status', ['assigned', 'in_use'])
                 ->count(),
             'returned_assignments' => AssetAssignment::where('organization_id', $organization->id)
-                ->where('status', 'returned')
+                ->whereIn('status', ['returned', 'lost', 'damaged'])
                 ->count(),
         ];
 
@@ -88,32 +95,45 @@ class ExecutiveDashboardController extends Controller
             ->get()
             ->groupBy('date');
 
+        $requestStats = [
+            'pending'  => AssetRequest::where('organization_id', $organization->id)->where('status', 'pending')->count(),
+            'approved' => AssetRequest::where('organization_id', $organization->id)->where('status', 'approved')->count(),
+            'fulfilled'=> AssetRequest::where('organization_id', $organization->id)->where('status', 'fulfilled')->count(),
+        ];
+
+        $unreviewedReports = AssetConditionReport::where('organization_id', $organization->id)
+            ->whereNull('reviewed_at')
+            ->count();
+
         return view('dashboards.executive', [
-            'organization' => $organization,
-            'pendingRequests' => $pendingRequests,
-            'assetStats' => $assetStats,
-            'recentActivities' => $recentActivities,
-            'assignmentStats' => $assignmentStats,
-            'approvalTrend' => $approvalTrend,
+            'organization'         => $organization,
+            'pendingRequests'      => $pendingRequests,
+            'assetStats'           => $assetStats,
+            'recentActivities'     => $recentActivities,
+            'assignmentStats'      => $assignmentStats,
+            'approvalTrend'        => $approvalTrend,
+            'pendingUserApprovals' => $pendingUserApprovals,
+            'requestStats'         => $requestStats,
+            'unreviewedReports'    => $unreviewedReports,
         ]);
     }
 
     /**
      * Show approval queue
      */
-    public function approvalQueue(): View
+    public function approvalQueue()
     {
         $user = auth()->user();
         $organization = $user->organization;
 
         if (!$user->isExecutive()) {
-            abort(403);
+            return redirect()->route($user->getDashboardRoute());
         }
 
         $requests = AssetRequest::query()
             ->where('organization_id', $organization->id)
             ->whereIn('status', ['pending', 'under_review'])
-            ->with('requestedBy', 'assets')
+            ->with('requestedBy')
             ->orderBy('created_at', 'desc')
             ->paginate(20);
 

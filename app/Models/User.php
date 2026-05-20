@@ -32,6 +32,8 @@ class User extends Authenticatable
         'password',
         'role_id',
         'organization_id',
+        'status',
+        'is_approved',
     ];
 
     /**
@@ -85,11 +87,6 @@ class User extends Authenticatable
     public function maintenanceRecords(): HasMany
     {
         return $this->hasMany(MaintenanceRecord::class, 'technician_id');
-    }
-
-    public function inspections(): HasMany
-    {
-        return $this->hasMany(Inspection::class, 'inspector_id');
     }
 
     public function activityLogs(): HasMany
@@ -159,10 +156,6 @@ class User extends Authenticatable
         // Company-based dashboards
         if ($this->isExecutive()) {
             return 'executive.dashboard';
-        }
-
-        if ($this->isAssetManager()) {
-            return 'manager.dashboard';
         }
 
         if ($this->isStaff()) {

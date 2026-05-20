@@ -12,11 +12,8 @@ use App\Models\User;
 use App\Models\Asset;
 use App\Models\WorkOrder;
 use App\Models\SparePart;
-use App\Models\Inspection;
 use App\Models\Organization;
-use App\Models\ResourceRequest;
-use App\Models\AssetIntake;
-use App\Models\AssetAssignment;
+use App\Models\AssetRequest;
 
 class DatabaseSeeder extends Seeder
 {
@@ -58,7 +55,6 @@ class DatabaseSeeder extends Seeder
             'view_assets', 'create_asset', 'edit_asset', 'delete_asset',
             'view_work_orders', 'create_work_order', 'edit_work_order', 'complete_work_order',
             'view_inventory', 'manage_inventory',
-            'view_inspections', 'schedule_inspection', 'complete_inspection',
             'view_financials', 'edit_financials',
             'view_reports', 'generate_reports',
             'manage_users', 'manage_roles',
@@ -83,7 +79,6 @@ class DatabaseSeeder extends Seeder
             'view_assets', 'create_asset', 'edit_asset',
             'view_work_orders', 'create_work_order', 'edit_work_order',
             'view_inventory', 'manage_inventory',
-            'view_inspections', 'schedule_inspection',
             'view_reports', 'view_audit_log',
             'create_resource_request', 'manage_asset_assignments',
         ])->get();
@@ -94,7 +89,6 @@ class DatabaseSeeder extends Seeder
             'view_assets',
             'view_work_orders', 'edit_work_order', 'complete_work_order',
             'view_inventory',
-            'view_inspections', 'complete_inspection',
             'view_reports',
             'report_assignment_condition',
         ])->get();
@@ -114,7 +108,6 @@ class DatabaseSeeder extends Seeder
             'view_assets',
             'view_work_orders',
             'view_inventory',
-            'view_inspections',
             'view_financials',
             'view_reports', 'generate_reports',
             'view_audit_log',
@@ -143,12 +136,15 @@ class DatabaseSeeder extends Seeder
             'name' => 'Northwind Industrial',
             'slug' => 'demo-company',
             'type' => 'company',
+            'email' => 'admin@northwind.local',
+            'code' => 'NORT-' . strtoupper(substr(md5(uniqid()), 0, 4)),
         ]);
 
         $householdOrg = Organization::create([
             'name' => 'Elmwood Household',
             'slug' => 'demo-household',
             'type' => 'household',
+            'email' => 'home@elmwood.local',
             'next_of_kin_name' => 'Jordan Elmwood',
             'next_of_kin_relationship' => 'Sibling',
             'next_of_kin_email' => 'jordan@example.com',
@@ -368,43 +364,15 @@ class DatabaseSeeder extends Seeder
             'location_id' => $firstLocation?->id,
         ]);
 
-        Inspection::create([
-            'asset_id' => $demoAsset->id,
-            'inspection_type' => 'Annual safety inspection',
-            'compliance_standard' => 'OSHA 1910',
-            'status' => 'Scheduled',
-            'scheduled_date' => now()->addDays(14),
-            'next_due_date' => now()->addDays(14),
-            'inspector_id' => $adminUser->id,
-        ]);
-
-        ResourceRequest::create([
+        AssetRequest::create([
             'organization_id' => $companyOrg->id,
             'requested_by' => $managerUser->id,
             'title' => 'Need 12 laptops for Q3 onboarding',
-            'body' => 'Procurement signed PO; requesting formal capacity approval and asset codes before receipt.',
-            'quantity_requested' => 12,
+            'description' => 'Procurement signed PO; requesting formal capacity approval and asset codes before receipt.',
+            'quantity' => 12,
+            'asset_type' => 'Laptop',
             'status' => 'pending',
         ]);
 
-        AssetIntake::create([
-            'organization_id' => $companyOrg->id,
-            'recorded_by' => $managerUser->id,
-            'title' => 'Dock 2 — mixed shipment',
-            'quantity_received' => 24,
-            'quantity_distributed' => 18,
-            'quantity_unused' => 6,
-            'notes' => 'Six units remain sealed for spares pool.',
-        ]);
-
-        AssetAssignment::create([
-            'organization_id' => $companyOrg->id,
-            'asset_id' => $hvacAsset->id,
-            'assigned_to' => $staffUser->id,
-            'assigned_by' => $adminUser->id,
-            'acknowledged_at' => now()->subDay(),
-            'staff_condition' => AssetAssignment::CONDITION_IN_USE,
-            'reported_at' => now()->subHours(6),
-        ]);
     }
 }

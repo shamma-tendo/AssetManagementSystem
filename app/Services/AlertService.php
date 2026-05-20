@@ -152,14 +152,24 @@ class AlertService
 
         if ($preferences->email_alerts) {
             // Send email notification
-            // TODO: Implement email notification
-            $shouldNotify = true;
+            try {
+                \Mail::to($user->email)->send(new \App\Mail\AlertNotification($alert, $user));
+                $shouldNotify = true;
+            } catch (\Exception $e) {
+                \Log::error('Failed to send email notification: ' . $e->getMessage());
+            }
         }
 
         if ($preferences->push_notifications) {
-            // Send push notification
-            // TODO: Implement push notification
-            $shouldNotify = true;
+            // Send push notification - placeholder for future implementation
+            // This would integrate with services like Firebase Cloud Messaging, OneSignal, etc.
+            try {
+                // Placeholder: Store notification for future push delivery
+                \Log::info("Push notification queued for user {$user->id}: {$alert->title}");
+                $shouldNotify = true;
+            } catch (\Exception $e) {
+                \Log::error('Failed to queue push notification: ' . $e->getMessage());
+            }
         }
 
         return $shouldNotify;

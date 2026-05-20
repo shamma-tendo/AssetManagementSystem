@@ -91,6 +91,13 @@
                     if (!data.success || !data.data.data) return;
 
                     const workOrders = data.data.data;
+
+                    // Show empty state per column if no work orders
+                    if (workOrders.length === 0) {
+                        Object.values(statusMap).forEach(colId => {
+                            document.getElementById(colId).innerHTML = '<p class="text-center text-gray-400 text-xs py-4">None</p>';
+                        });
+                    }
                     const counts = {};
 
                     // Group by status
@@ -121,7 +128,8 @@
         }
 
         function openCreateModal() {
-            alert('Create work order modal would open here');
+            // Work orders are created from an asset's detail page
+            window.location.href = '/assets';
         }
 
         function viewWorkOrder(id) {

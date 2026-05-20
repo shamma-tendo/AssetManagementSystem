@@ -39,7 +39,7 @@ class AssetController extends Controller
     {
         $asset->load([
             'category', 'location', 'department',
-            'workOrders', 'maintenanceRecords', 'inspections',
+            'workOrders', 'maintenanceRecords',
             'depreciationRecords', 'iotReadings'
         ]);
 

@@ -41,20 +41,6 @@
         <div class="bg-white rounded-lg shadow p-6">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-gray-500 text-sm font-medium">Open Work Orders</p>
-                    <p class="text-3xl font-bold text-orange-600 mt-2" id="open-work-orders">0</p>
-                </div>
-                <div class="bg-orange-100 p-3 rounded-full">
-                    <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
-                    </svg>
-                </div>
-            </div>
-        </div>
-
-        <div class="bg-white rounded-lg shadow p-6">
-            <div class="flex items-center justify-between">
-                <div>
                     <p class="text-gray-500 text-sm font-medium">Total Asset Value</p>
                     <p class="text-3xl font-bold text-purple-600 mt-2" id="total-value">$0</p>
                 </div>
@@ -75,8 +61,8 @@
         </div>
 
         <div class="bg-white rounded-lg shadow p-6">
-            <p class="text-gray-500 text-sm font-medium mb-2">Compliance Alerts</p>
-            <p class="text-2xl font-bold text-yellow-600" id="compliance-alerts">0</p>
+            <p class="text-gray-500 text-sm font-medium mb-2">Retired Assets</p>
+            <p class="text-2xl font-bold text-red-600" id="retired-assets">0</p>
         </div>
 
         <div class="bg-white rounded-lg shadow p-6">
@@ -115,45 +101,11 @@
             </div>
         </div>
 
-        <!-- Recent Work Orders -->
-        <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-lg font-semibold text-gray-900 mb-4">Recent Work Orders</h2>
-            <div class="space-y-3">
-                <div class="border-l-4 border-blue-500 pl-4 py-2">
-                    <p class="text-sm font-medium text-gray-900">WO-20240515-001</p>
-                    <p class="text-xs text-gray-500">Pump Maintenance</p>
-                    <span class="inline-block mt-1 text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800">Open</span>
-                </div>
-                <div class="border-l-4 border-orange-500 pl-4 py-2">
-                    <p class="text-sm font-medium text-gray-900">WO-20240514-012</p>
-                    <p class="text-xs text-gray-500">Motor Replacement</p>
-                    <span class="inline-block mt-1 text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-800">In Progress</span>
-                </div>
-                <div class="border-l-4 border-green-500 pl-4 py-2">
-                    <p class="text-sm font-medium text-gray-900">WO-20240513-008</p>
-                    <p class="text-xs text-gray-500">Preventive Maintenance</p>
-                    <span class="inline-block mt-1 text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">Completed</span>
-                </div>
-            </div>
-            <a href="{{ route('work-orders.index') }}" class="inline-block mt-4 text-blue-600 hover:text-blue-700 text-sm font-medium">View all →</a>
-        </div>
+        <!-- Placeholder: Assets by Category or other overview can go here -->
     </div>
 
-    <!-- Upcoming Inspections and Low Stock -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-lg font-semibold text-gray-900 mb-4">Upcoming Inspections</h2>
-            <div class="space-y-3">
-                <div class="flex items-center justify-between py-2 border-b border-gray-100">
-                    <div>
-                        <p class="text-sm font-medium text-gray-900">Fire Extinguisher Inspection</p>
-                        <p class="text-xs text-gray-500">Due: May 25, 2024</p>
-                    </div>
-                    <span class="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-800">7 days</span>
-                </div>
-            </div>
-        </div>
-
+    <!-- Low Stock -->
+    <div class="grid grid-cols-1 gap-6">
         <div class="bg-white rounded-lg shadow p-6">
             <h2 class="text-lg font-semibold text-gray-900 mb-4">Low Stock Items</h2>
             <div class="space-y-3">
@@ -184,15 +136,6 @@
             })
             .catch(error => console.error('Error fetching dashboard data:', error));
 
-        aemsFetch('/api/work-orders/stats')
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    document.getElementById('open-work-orders').textContent = data.data.open;
-                }
-            })
-            .catch(error => console.error('Error fetching work order stats:', error));
-
         aemsFetch('/api/spare-parts/stats')
             .then(response => response.json())
             .then(data => {
@@ -202,13 +145,13 @@
             })
             .catch(error => console.error('Error fetching inventory stats:', error));
 
-        aemsFetch('/api/inspections/stats')
+        aemsFetch('/api/assets/stats')
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    document.getElementById('compliance-alerts').textContent = data.data.overdue;
+                    document.getElementById('retired-assets').textContent = data.data.retired_assets ?? 0;
                 }
             })
-            .catch(error => console.error('Error fetching inspection stats:', error));
+            .catch(error => console.error('Error fetching asset stats:', error));
     </script>
 @endsection

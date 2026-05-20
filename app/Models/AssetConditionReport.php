@@ -6,20 +6,21 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 class AssetConditionReport extends Model
 {
-    use HasFactory, HasUuids, SoftDeletes;
+    use HasFactory, HasUuids;
 
     protected $keyType = 'string';
     public $incrementing = false;
 
     protected $fillable = [
         'asset_assignment_id',
+        'asset_id',
         'organization_id',
         'reported_by',
         'condition',
+        'status',
         'description',
         'action_required',
         'requires_urgent_attention',
@@ -35,12 +36,16 @@ class AssetConditionReport extends Model
         'reviewed_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
-        'deleted_at' => 'datetime',
     ];
 
     public function assetAssignment(): BelongsTo
     {
         return $this->belongsTo(AssetAssignment::class);
+    }
+
+    public function asset(): BelongsTo
+    {
+        return $this->belongsTo(Asset::class);
     }
 
     public function organization(): BelongsTo

@@ -10,9 +10,6 @@
             <p class="text-gray-600 mt-1">Serial: {{ $asset->serial_number }}</p>
         </div>
         <div class="flex gap-2">
-            @if (auth()->user()->hasPermission('manage_asset_assignments') && ! $asset->currentAssignment)
-                <a href="{{ route('assets.assignments.create', $asset) }}" class="bg-slate-800 text-white px-4 py-2 rounded-lg hover:bg-slate-900 text-sm font-medium">Assign custody</a>
-            @endif
             <a href="{{ route('assets.edit', $asset) }}" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">Edit</a>
         </div>
     </div>
@@ -45,7 +42,7 @@
             <div class="bg-white rounded-lg shadow p-6">
                 <h2 class="text-lg font-semibold text-gray-900 mb-3">Custody &amp; field signals</h2>
                 @if ($asset->currentAssignment)
-                    <p class="text-sm text-gray-700">Assigned to <strong>{{ $asset->currentAssignment->assignee?->name }}</strong></p>
+                    <p class="text-sm text-gray-700">Assigned to <strong>{{ $asset->currentAssignment->assignedTo?->name }}</strong></p>
                     <p class="text-xs text-gray-500 mt-1">Since {{ $asset->currentAssignment->created_at->format('M j, Y') }}
                         @if ($asset->currentAssignment->acknowledged_at)
                             · Acknowledged {{ $asset->currentAssignment->acknowledged_at->diffForHumans() }}
@@ -79,17 +76,6 @@
                 @endforelse
             </div>
 
-            <div class="bg-white rounded-lg shadow p-6">
-                <h2 class="text-lg font-semibold text-gray-900 mb-4">Inspections</h2>
-                @forelse ($asset->inspections as $insp)
-                    <div class="border-b border-gray-100 py-3 text-sm">
-                        <p class="font-medium">{{ $insp->inspection_type }}</p>
-                        <p class="text-gray-500">Scheduled {{ $insp->scheduled_date?->format('M j, Y') }} — {{ $insp->status }}</p>
-                    </div>
-                @empty
-                    <p class="text-gray-500 text-sm">No inspections recorded.</p>
-                @endforelse
-            </div>
         </div>
 
         <div class="space-y-6">

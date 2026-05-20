@@ -31,13 +31,29 @@ class TenantLoginController extends Controller
 
         session(['tenant_type' => $request->tenant_type]);
 
-        // If household, go straight to login
+        // If household, show auth choice (Sign Up or Sign In)
         if ($request->tenant_type === 'household') {
-            return redirect()->route('login');
+            return redirect()->route('household.auth-choice');
         }
 
-        // If company, show industry type selection
-        return redirect()->route('select-industry-type');
+        // If company, show auth choice (Register new or Join existing)
+        return redirect()->route('company.auth-choice');
+    }
+
+    /**
+     * Show the company auth choice page
+     * Users choose to register a new company or join an existing one
+     */
+    public function showCompanyAuthChoice(): View
+    {
+        $tenantType = session('tenant_type');
+        
+        // Only companies should see this
+        if ($tenantType !== 'company') {
+            return redirect()->route('select-tenant-type');
+        }
+        
+        return view('auth.company-auth-choice');
     }
 
     /**

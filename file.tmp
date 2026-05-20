@@ -1,0 +1,252 @@
+# AEMS Frontend - Quick Access Guide
+
+## Getting Started
+
+### Access the Platform
+```
+URL: http://your-app.com/dashboard
+```
+
+## Main Navigation
+
+### From Sidebar (Left Side)
+- **Dashboard** - Overview of all metrics
+- **Asset Registry** - Manage all assets
+- **Work Orders** - Maintenance tasks
+- **Inspections** - Inspection management
+- **Spare Parts** - Inventory management
+- **Financial Reports** - Financial analytics
+- **Analytics** - Performance analytics
+- **Categories** - Asset categories
+- **Locations** - Asset locations
+- **Audit Log** - Activity history
+- **Users** - User management (Admin)
+- **Roles & Permissions** - Role management (Admin)
+- **Profile Settings** - Your profile
+- **Settings** - Preferences
+
+### From Top Navbar
+- **Notifications** - Click the bell icon
+- **Help** - Support and documentation
+- **User Menu** - Click your profile avatar
+  - View Profile
+  - Change Password
+  - Logout
+
+## Key Features & URLs
+
+| Feature | URL | Access Level |
+|---------|-----|--------------|
+| Dashboard | dashboard | All Users |
+| Asset Registry | assets | Asset Manager+ |
+| Create Asset | assets/create | Asset Manager+ |
+| Edit Asset | assets/{id}/edit | Asset Manager+ |
+| Work Orders | work-orders | All Users |
+| Create Work Order | work-orders/create | Technician+ |
+| Inspections | inspections | Inspector+ |
+| Schedule Inspection | inspections/create | Inspector+ |
+| Inventory | inventory | Inventory Manager+ |
+| Financial Reports | reports/financial | Asset Manager+ |
+| Analytics | reports/analytics | Asset Manager+ |
+| Users | users | Admin Only |
+| Roles | roles | Admin Only |
+| Profile | profile | All Users |
+| Categories | settings/categories | Admin+ |
+| Locations | settings/locations | Admin+ |
+| Audit Log | settings/audit-log | Admin+ |
+
+## Common Tasks
+
+### Add New Asset
+1. Click "Asset Registry" in sidebar
+2. Click "Add Asset" button (top right)
+3. Fill in asset details
+4. Click "Save"
+
+### Create Work Order
+1. Click "Work Orders" in sidebar
+2. Click "New Work Order" button
+3. Select asset and details
+4. Assign to technician
+5. Click "Create"
+
+### Manage Users (Admin)
+1. Click "Users" in sidebar
+2. Search or filter users
+3. Click "Edit" to modify
+4. Click "Delete" to remove
+5. Click "View" for details
+
+### Update Your Profile
+1. Click your avatar (top right)
+2. Click "Profile Settings"
+3. Edit information
+4. Click "Save Changes"
+
+### Change Password
+1. Go to Profile Settings
+2. Scroll to "Change Password"
+3. Enter current and new password
+4. Click "Update Password"
+
+## Global Utilities (JavaScript Console)
+
+### Make API Calls
+```javascript
+// Note: apiCall uses relative paths based on the app root
+// Get dashboard data
+await window.apiCall('dashboard')
+
+// Get assets
+await window.apiCall('assets')
+
+// Create asset
+await window.apiCall('assets', 'POST', {name: 'New Asset'})
+
+// Update asset
+await window.apiCall('assets/123', 'PUT', {name: 'Updated'})
+
+// Delete asset
+await window.apiCall('assets/123', 'DELETE')
+```
+
+### Show Notifications
+```javascript
+// Success
+window.showToast('Success!', 'success')
+
+// Error
+window.showToast('Error occurred', 'error')
+
+// Warning
+window.showToast('Warning!', 'warning')
+
+// Info
+window.showToast('Information', 'info')
+```
+
+### Manage Modals
+```javascript
+// Open modal
+window.openModal('assetModal')
+
+// Close modal
+window.closeModal('assetModal')
+```
+
+### Format Data
+```javascript
+// Format currency
+window.formatCurrency(1000) // $1,000.00
+
+// Format date
+window.formatDate('2024-05-17') // May 17, 2024
+
+// Format date & time
+window.formatDateTime('2024-05-17T10:30:00')
+```
+
+## Dashboard Metrics Explained
+
+| Metric | Description |
+|--------|-------------|
+| **Total Assets** | Sum of all assets in system |
+| **Active Assets** | Fully operational assets |
+| **Open Work Orders** | Pending maintenance tasks |
+| **Total Asset Value** | Combined value of all assets |
+| **Upcoming Inspections** | Inspections due in 30 days |
+| **Under Maintenance** | Assets currently in maintenance |
+| **Low Stock Items** | Inventory below reorder point |
+
+## Status Colors
+
+- 🟢 **Green** = Active / Success / Operational
+- 🟠 **Orange** = Warning / In Progress / Maintenance
+- 🔴 **Red** = Critical / Retired / Error
+- 🔵 **Blue** = Info / Available / Pending
+
+## Search & Filter
+
+### Asset Registry
+- **Search**: By name or code
+- **Category**: Filter by type
+- **Status**: Active/Maintenance/Retired
+- **Location**: By location
+
+### Users
+- **Search**: By name or email
+- **Role**: By user role
+- **Status**: Active/Inactive
+
+### Work Orders
+- **Status**: Open/In Progress/Completed
+- **Assigned To**: By technician
+- **Asset**: By specific asset
+
+## Mobile Tips
+
+- Sidebar collapses on mobile
+- Touch-friendly buttons
+- Scrollable tables
+- Responsive modals
+- Optimized forms
+
+## Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `Esc` | Close modal |
+| `Enter` | Submit form |
+| `Tab` | Navigate form fields |
+| `Ctrl+F` | Browser find (search page) |
+
+## Troubleshooting
+
+### Page Not Loading
+1. Refresh browser (Ctrl+F5)
+2. Clear cache
+3. Check internet connection
+
+### Form Not Submitting
+1. Check for error messages
+2. Verify all required fields filled
+3. Check browser console for errors
+
+### Modal Not Opening
+1. Check browser console
+2. Verify modal ID is correct
+3. Try refreshing page
+
+### Data Not Updating
+1. Click refresh button
+2. Wait 5 minutes for auto-refresh
+3. Check API status
+
+## Performance Tips
+
+- Search/Filter on large datasets (pagination used)
+- Data auto-refreshes every 5 minutes
+- Use browser cache for faster loading
+- Close unused modals to improve performance
+
+## Security Reminders
+
+- Log out when leaving computer
+- Never share your password
+- Report suspicious activity
+- Enable two-factor authentication (if available)
+- Keep browser updated
+
+## Need Help?
+
+1. Click **Help** in top navbar
+2. Check documentation links
+3. View **FRONTEND_GUIDE.md**
+4. Check browser console (F12) for errors
+5. Contact administrator
+
+---
+
+**Version**: 1.0  
+**Last Updated**: May 2026  
+**Quick Reference Card** - Keep this for easy access!
