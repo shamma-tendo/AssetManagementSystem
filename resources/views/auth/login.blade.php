@@ -48,7 +48,6 @@
             @if($tenant_type === 'household')
                 · <a href="{{ route('household.register') }}" class="text-blue-600 hover:underline">Create account</a>
             @endif
-            · Demo: admin@aems.local / password
         </p>
     </div>
 </body>
