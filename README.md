@@ -1,3 +1,4 @@
+# AssetManagementSystem
 This system provides a comprehensive solution for managing physical assets and equipment across their entire lifecycle — from procurement and commissioning through maintenance, depreciation, and disposal.
 Core features include a centralized asset registry, preventive and corrective maintenance scheduling, inventory and parts management, location tracking (barcode/QR/RFID/GPS), financial and depreciation tracking, compliance and inspection management, and role-based access control. Built-in reporting and analytics surface key metrics like utilization, downtime, and total cost of ownership, while integrations with ERP, accounting, procurement, and IoT platforms keep data in sync across your stack. Mobile-friendly access ensures field technicians can update records and log work orders from anywhere.
 Designed to help organizations reduce downtime, extend asset lifespan, control costs, and meet compliance requirements with confidence.
