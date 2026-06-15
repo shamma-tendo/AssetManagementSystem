@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\ContactFormMail;
 use App\Models\Contact;
 use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Mail;
 
 class PageController extends Controller
@@ -35,7 +37,7 @@ class PageController extends Controller
     /**
      * Submit a contact form message.
      */
-    public function submitContact(Request $request)
+    public function submitContact(Request $request): RedirectResponse
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -46,33 +48,21 @@ class PageController extends Controller
 
         try {
             // Store the contact message in database
-            Contact::create([
-                'name' => $validated['name'],
-                'email' => $validated['email'],
-                'subject' => $validated['subject'],
-                'message' => $validated['message'],
-                'status' => 'new',
-            ]);
+            Contact::create($validated + ['status' => 'new']);
 
             // Try to send email (graceful failure if mail not configured)
             try {
-                Mail::raw(
-                    "Name: {$validated['name']}\nEmail: {$validated['email']}\nSubject: {$validated['subject']}\n\nMessage:\n{$validated['message']}",
-                    function ($message) use ($validated) {
-                        $message->to(config('mail.from.address', 'noreply@aems.app'))
-                                ->replyTo($validated['email'])
-                                ->subject("Contact Form: {$validated['subject']}");
-                    }
-                );
+                Mail::to(config('mail.from.address', 'noreply@aems.app'))
+                    ->send(new ContactFormMail($validated));
             } catch (\Exception $e) {
                 // Email sending failed, but contact was saved
                 // Log the error for debugging
-                \Log::warning('Failed to send contact form email: ' . $e->getMessage());
+                logger()->warning('Failed to send contact form email: ' . $e->getMessage());
             }
 
-            return redirect('/contact')->with('success', 'Thank you for your message! We will get back to you soon.');
+            return redirect(route('contact'))->with('success', 'Thank you for your message! We will get back to you soon.');
         } catch (\Exception $e) {
-            return redirect('/contact')->with('error', 'Failed to send message. Please try again.');
+            return redirect(route('contact'))->with('error', 'Failed to send message. Please try again.');
         }
     }
 }
