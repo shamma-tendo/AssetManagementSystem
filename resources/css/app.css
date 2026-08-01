@@ -10,7 +10,7 @@
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
 
-/* Glassmorphism Utilities */
+
 @layer utilities {
     .glass {
         background: rgba(255, 255, 255, 0.1);
@@ -110,7 +110,7 @@
     }
 }
 
-/* Animations */
+/* Animations.*/
 @keyframes float {
     0%, 100% { transform: translateY(0px); }
     50% { transform: translateY(-10px); }
@@ -164,7 +164,7 @@
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
 }
 
-/* Premium shadows */
+/* Premium shadows. */
 .shadow-premium {
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1), 0 10px 20px rgba(0, 0, 0, 0.05);
 }
@@ -177,7 +177,7 @@
     box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
 }
 
-/* Gradient backgrounds */
+/* Gradient backgrounds. */
 .gradient-premium {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
